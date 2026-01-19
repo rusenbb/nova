@@ -6,6 +6,7 @@ use super::custom_commands::{CustomCommandsIndex, ScriptOutputMode};
 
 /// Unified abstraction for keyword-triggered commands (Aliases, Quicklinks, Scripts)
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields reserved for future use (icons, colors)
 pub struct Extension {
     pub keyword: String,
     pub name: String,
@@ -47,12 +48,14 @@ impl Extension {
     }
 
     /// Get pill color (default to accent color if not specified)
+    #[allow(dead_code)]
     pub fn pill_color(&self) -> &str {
         self.color.as_deref().unwrap_or("#cba6f7")
     }
 }
 
 /// Index of all extensions for fast keyword lookup
+#[allow(dead_code)] // extensions field for future search feature
 pub struct ExtensionIndex {
     extensions: Vec<Extension>,
     by_keyword: HashMap<String, Extension>,
@@ -122,6 +125,7 @@ impl ExtensionIndex {
     }
 
     /// Search extensions by partial keyword or name match
+    #[allow(dead_code)]
     pub fn search(&self, query: &str) -> Vec<&Extension> {
         let query_lower = query.to_lowercase();
         self.extensions

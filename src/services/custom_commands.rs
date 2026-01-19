@@ -138,6 +138,7 @@ impl CustomCommandsIndex {
         metadata
     }
 
+    #[allow(dead_code)] // For future hot-reload feature
     pub fn reload_scripts(&mut self, config: &Config) {
         self.scripts = if config.scripts.enabled {
             Self::load_scripts(&config.scripts.directory)

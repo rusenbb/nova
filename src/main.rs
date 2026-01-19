@@ -46,6 +46,7 @@ impl CommandModeState {
 
 // Search results that appear in the launcher
 #[derive(Debug, Clone)]
+#[allow(dead_code)] // Fields used for matching, not all directly accessed
 enum SearchResult {
     App(services::AppEntry),
     Command { id: String, name: String, description: String },
@@ -85,27 +86,6 @@ impl SearchResult {
         }
     }
 
-    fn id(&self) -> &str {
-        match self {
-            SearchResult::App(app) => &app.id,
-            SearchResult::Command { id, .. } => id,
-            SearchResult::Alias { keyword, .. } => keyword,
-            SearchResult::Quicklink { keyword, .. } => keyword,
-            SearchResult::QuicklinkWithQuery { keyword, .. } => keyword,
-            SearchResult::Script { id, .. } => id,
-            SearchResult::ScriptWithArgument { id, .. } => id,
-        }
-    }
-
-    fn result_type(&self) -> &'static str {
-        match self {
-            SearchResult::App(_) => "app",
-            SearchResult::Command { .. } => "command",
-            SearchResult::Alias { .. } => "alias",
-            SearchResult::Quicklink { .. } | SearchResult::QuicklinkWithQuery { .. } => "quicklink",
-            SearchResult::Script { .. } | SearchResult::ScriptWithArgument { .. } => "script",
-        }
-    }
 }
 
 fn get_system_commands() -> Vec<SearchResult> {
@@ -770,7 +750,7 @@ fn build_ui(app: &Application) {
 
                     // Show empty state results for command mode
                     let results = search_in_command_mode(&command_mode_for_search.borrow(), "", max_results);
-                    update_results_list_v2(&results_for_search.borrow(), &results);
+                    update_results_list(&results_for_search.borrow(), &results);
                     *current_results_for_search.borrow_mut() = results;
                     *selected_for_search.borrow_mut() = 0;
                     if let Some(row) = results_for_search.borrow().row_at_index(0) {
@@ -790,7 +770,7 @@ fn build_ui(app: &Application) {
             search_with_commands(&app_index_search, &custom_commands_search.borrow(), &query, max_results)
         };
 
-        update_results_list_v2(&results_for_search.borrow(), &results);
+        update_results_list(&results_for_search.borrow(), &results);
         *current_results_for_search.borrow_mut() = results;
         *selected_for_search.borrow_mut() = 0;
         if let Some(row) = results_for_search.borrow().row_at_index(0) {
@@ -858,7 +838,7 @@ fn build_ui(app: &Application) {
 
                                     // Show command mode results
                                     let new_results = search_in_command_mode(&command_mode_for_key.borrow(), "", max_results);
-                                    update_results_list_v2(&results_for_key.borrow(), &new_results);
+                                    update_results_list(&results_for_key.borrow(), &new_results);
                                     *current_results_for_key.borrow_mut() = new_results;
                                     *selected_for_key.borrow_mut() = 0;
                                     if let Some(row) = results_for_key.borrow().row_at_index(0) {
@@ -895,7 +875,7 @@ fn build_ui(app: &Application) {
                         "",
                         max_results,
                     );
-                    update_results_list_v2(&results_for_key.borrow(), &results);
+                    update_results_list(&results_for_key.borrow(), &results);
                     *current_results_for_key.borrow_mut() = results;
                     *selected_for_key.borrow_mut() = 0;
                     if let Some(row) = results_for_key.borrow().row_at_index(0) {
@@ -932,7 +912,7 @@ fn build_ui(app: &Application) {
                         "",
                         max_results,
                     );
-                    update_results_list_v2(&results_for_key.borrow(), &results);
+                    update_results_list(&results_for_key.borrow(), &results);
                     *current_results_for_key.borrow_mut() = results;
                     *selected_for_key.borrow_mut() = 0;
                     if let Some(row) = results_for_key.borrow().row_at_index(0) {
@@ -1153,7 +1133,7 @@ fn build_ui(app: &Application) {
 
                 // Show initial results (apps only when empty query)
                 let results = search_with_commands(&app_index_for_ipc, &custom_commands_for_ipc.borrow(), "", max_results);
-                update_results_list_v2(&results_for_ipc.borrow(), &results);
+                update_results_list(&results_for_ipc.borrow(), &results);
                 *current_results_for_ipc.borrow_mut() = results;
                 *selected_for_ipc.borrow_mut() = 0;
                 if let Some(row) = results_for_ipc.borrow().row_at_index(0) {
@@ -1188,40 +1168,7 @@ fn build_ui(app: &Application) {
     println!("[Nova] Started - Super+Space to toggle");
 }
 
-fn update_results_list(list: &ListBox, results: &[&services::AppEntry]) {
-    // Clear existing rows
-    for child in list.children() {
-        list.remove(&child);
-    }
-
-    // Add new rows
-    for app in results {
-        let row = ListBoxRow::new();
-        let hbox = gtk::Box::new(Orientation::Vertical, 2);
-        hbox.set_margin_start(4);
-        hbox.set_margin_end(4);
-
-        let name_label = Label::new(Some(&app.name));
-        name_label.set_halign(gtk::Align::Start);
-        name_label.style_context().add_class("nova-result-name");
-
-        hbox.pack_start(&name_label, false, false, 0);
-
-        if let Some(desc) = &app.description {
-            let desc_label = Label::new(Some(desc));
-            desc_label.set_halign(gtk::Align::Start);
-            desc_label.set_ellipsize(pango::EllipsizeMode::End);
-            desc_label.style_context().add_class("nova-result-desc");
-            hbox.pack_start(&desc_label, false, false, 0);
-        }
-
-        row.add(&hbox);
-        row.show_all();
-        list.add(&row);
-    }
-}
-
-fn update_results_list_v2(list: &ListBox, results: &[SearchResult]) {
+fn update_results_list(list: &ListBox, results: &[SearchResult]) {
     // Clear existing rows
     for child in list.children() {
         list.remove(&child);
