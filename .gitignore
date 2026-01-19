@@ -1,32 +1,13 @@
-# Dependencies
-node_modules/
-
-# Build outputs
-dist/
-dist-ssr/
+# Build output
 target/
-
-# Logs
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-
-# Local/temp files
-*.local
-.DS_Store
-*.sw?
 
 # Editor
 .idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
+.vscode/
+*.sw?
+
+# OS
+.DS_Store
 
 # Project docs (internal planning)
 .project_docs/
-
-# Lock files (optional - uncomment if you want to track them)
-# bun.lock
-# Cargo.lock

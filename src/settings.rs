@@ -1,4 +1,5 @@
-use crate::config::{set_autostart, AliasConfig, Config, QuicklinkConfig};
+use crate::config::{generate_css, set_autostart, AliasConfig, Config, QuicklinkConfig};
+use gdk::Screen;
 use glib::clone;
 use gtk::prelude::*;
 use gtk::{
@@ -604,6 +605,20 @@ pub fn show_settings_window(app: &Application) {
             // Update autostart
             if let Err(e) = set_autostart(autostart_switch.is_active()) {
                 eprintln!("[Nova] Failed to update autostart: {}", e);
+            }
+
+            // Refresh CSS for the main Nova window
+            let css = generate_css(&config.borrow().appearance);
+            let provider = CssProvider::new();
+            if provider.load_from_data(css.as_bytes()).is_ok() {
+                if let Some(screen) = Screen::default() {
+                    StyleContext::add_provider_for_screen(
+                        &screen,
+                        &provider,
+                        gtk::STYLE_PROVIDER_PRIORITY_USER,
+                    );
+                    println!("[Nova] CSS refreshed with new appearance settings");
+                }
             }
 
             window.close();

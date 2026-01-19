@@ -223,3 +223,142 @@ pub fn set_autostart(enabled: bool) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Parse a hex color string like "#cba6f7" to (r, g, b)
+pub fn parse_hex_color(hex: &str) -> (u8, u8, u8) {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() >= 6 {
+        let r = u8::from_str_radix(&hex[0..2], 16).unwrap_or(203);
+        let g = u8::from_str_radix(&hex[2..4], 16).unwrap_or(166);
+        let b = u8::from_str_radix(&hex[4..6], 16).unwrap_or(247);
+        (r, g, b)
+    } else {
+        (203, 166, 247) // Default to catppuccin mauve
+    }
+}
+
+/// Get theme colors based on theme name
+pub fn get_theme_colors(theme: &str) -> (&'static str, &'static str, &'static str) {
+    // Returns (background_rgb, text_color, subtext_color)
+    match theme {
+        "catppuccin-mocha" => ("30, 30, 46", "#cdd6f4", "#6c7086"),
+        "catppuccin-macchiato" => ("36, 39, 58", "#cad3f5", "#6e738d"),
+        "catppuccin-frappe" => ("48, 52, 70", "#c6d0f5", "#737994"),
+        "catppuccin-latte" => ("239, 241, 245", "#4c4f69", "#6c6f85"),
+        "nord" => ("46, 52, 64", "#eceff4", "#4c566a"),
+        "dracula" => ("40, 42, 54", "#f8f8f2", "#6272a4"),
+        "gruvbox-dark" => ("40, 40, 40", "#ebdbb2", "#928374"),
+        "tokyo-night" => ("26, 27, 38", "#c0caf5", "#565f89"),
+        "one-dark" => ("40, 44, 52", "#abb2bf", "#5c6370"),
+        _ => ("30, 30, 46", "#cdd6f4", "#6c7086"), // Default to catppuccin-mocha
+    }
+}
+
+/// Generate CSS with appearance settings from config
+pub fn generate_css(config: &AppearanceConfig) -> String {
+    let (bg_rgb, text_color, subtext_color) = get_theme_colors(&config.theme);
+    let (accent_r, accent_g, accent_b) = parse_hex_color(&config.accent_color);
+    let opacity = config.opacity;
+
+    format!(r#"
+    window {{
+        background-color: transparent;
+    }}
+
+    .nova-container {{
+        background-color: rgba({bg_rgb}, {opacity});
+        border-radius: 12px;
+        padding: 12px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }}
+
+    .nova-entry {{
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 12px 16px;
+        font-size: 18px;
+        color: {text_color};
+        min-width: 550px;
+    }}
+
+    .nova-entry:focus {{
+        border-color: rgba({accent_r}, {accent_g}, {accent_b}, 0.5);
+        outline: none;
+    }}
+
+    .nova-results {{
+        background-color: transparent;
+        margin-top: 8px;
+    }}
+
+    .nova-results row {{
+        padding: 8px 12px;
+        border-radius: 6px;
+        background-color: transparent;
+    }}
+
+    .nova-results row:selected,
+    list.nova-results row:selected,
+    row:selected {{
+        background-color: rgba({accent_r}, {accent_g}, {accent_b}, 0.35);
+        border-left: 3px solid rgba({accent_r}, {accent_g}, {accent_b}, 0.9);
+    }}
+
+    .nova-result-name {{
+        font-size: 15px;
+        font-weight: 500;
+        color: {text_color};
+    }}
+
+    .nova-result-desc {{
+        font-size: 12px;
+        color: {subtext_color};
+        margin-top: 2px;
+    }}
+
+    .nova-entry-container {{
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 8px;
+        padding: 8px 12px;
+    }}
+
+    .nova-entry-container:focus-within {{
+        border-color: rgba({accent_r}, {accent_g}, {accent_b}, 0.5);
+    }}
+
+    .nova-command-pill {{
+        background-color: rgba({accent_r}, {accent_g}, {accent_b}, 0.25);
+        border-radius: 4px;
+        padding: 4px 10px;
+        margin-right: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        color: {accent_color};
+    }}
+
+    .nova-entry-in-container {{
+        background-color: transparent;
+        border: none;
+        padding: 4px 4px;
+        font-size: 18px;
+        color: {text_color};
+        min-width: 450px;
+    }}
+
+    .nova-entry-in-container:focus {{
+        outline: none;
+        border: none;
+    }}
+"#,
+    bg_rgb = bg_rgb,
+    opacity = opacity,
+    text_color = text_color,
+    subtext_color = subtext_color,
+    accent_r = accent_r,
+    accent_g = accent_g,
+    accent_b = accent_b,
+    accent_color = config.accent_color,
+    )
+}

@@ -37,7 +37,7 @@ Build and install:
 
 ```bash
 git clone https://github.com/rusenbb/nova.git
-cd nova/src-tauri
+cd nova
 cargo build --release
 sudo cp target/release/nova /usr/local/bin/
 ```
