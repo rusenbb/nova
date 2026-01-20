@@ -1,4 +1,7 @@
 mod config;
+mod error;
+mod executor;
+mod search;
 mod services;
 mod settings;
 
@@ -6,7 +9,10 @@ use gdk::prelude::*;
 use gdk::Screen;
 use glib::ControlFlow;
 use gtk::prelude::*;
-use gtk::{Application, ApplicationWindow, Entry, EventBox, ListBox, ListBoxRow, Label, CssProvider, StyleContext, Orientation};
+use gtk::{
+    Application, ApplicationWindow, CssProvider, Entry, EventBox, Label, ListBox, ListBoxRow,
+    Orientation, StyleContext,
+};
 use services::AppIndex;
 use std::cell::RefCell;
 use std::env;
@@ -15,13 +21,13 @@ use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
 use std::process::Command;
 use std::rc::Rc;
-use std::thread;
 use std::sync::mpsc;
+use std::thread;
 use std::time::Instant;
 
 const APP_ID: &str = "com.rusen.nova";
 
-use services::{CustomCommandsIndex, ScriptOutputMode, Extension, ExtensionIndex, ExtensionKind};
+use services::{CustomCommandsIndex, Extension, ExtensionIndex, ExtensionKind, ScriptOutputMode};
 
 /// Represents the current command mode state
 #[derive(Debug, Clone, Default)]
@@ -44,17 +50,211 @@ impl CommandModeState {
     }
 }
 
+/// Consolidated UI state to reduce RefCell sprawl
+///
+/// This struct holds all mutable UI state that needs to be shared across
+/// GTK event handlers. By consolidating state here, we reduce the number
+/// of individual Rc<RefCell<T>> variables from 15+ to just one.
+struct UIState {
+    // Widget references (GTK widgets are internally ref-counted, so Clone is cheap)
+    window: ApplicationWindow,
+    entry: Entry,
+    results_list: ListBox,
+    command_pill: Label,
+
+    // Mutable state
+    is_visible: bool,
+    selected_index: i32,
+    current_results: Vec<SearchResult>,
+    command_mode: CommandModeState,
+    is_clearing: bool, // Guard to prevent callback loops when programmatically clearing entry
+    last_toggle: Instant,
+}
+
+impl UIState {
+    /// Update the results list with new search results
+    fn update_results(&mut self, results: Vec<SearchResult>) {
+        render_results_list(&self.results_list, &results);
+        self.current_results = results;
+        self.selected_index = 0;
+        if let Some(row) = self.results_list.row_at_index(0) {
+            self.results_list.select_row(Some(&row));
+        }
+    }
+
+    /// Clear entry text with the is_clearing guard to prevent callback loops
+    fn clear_entry(&mut self) {
+        self.is_clearing = true;
+        self.entry.set_text("");
+        self.is_clearing = false;
+    }
+
+    /// Update command pill visibility and text based on command mode state
+    fn update_command_pill(&self) {
+        if let Some(ref ext) = self.command_mode.active_extension {
+            self.command_pill.set_text(ext.pill_text());
+            self.command_pill.set_visible(true);
+            self.entry
+                .set_placeholder_text(Some(&format!("Search {}...", ext.name)));
+        } else {
+            self.command_pill.set_visible(false);
+            self.entry.set_placeholder_text(Some("Search apps..."));
+        }
+    }
+
+    /// Enter command mode for the given extension
+    fn enter_command_mode(&mut self, extension: Extension) {
+        self.command_mode.enter_mode(extension);
+        self.clear_entry();
+        self.update_command_pill();
+    }
+
+    /// Exit command mode and reset to normal search
+    fn exit_command_mode(&mut self) {
+        self.command_mode.exit_mode();
+        self.update_command_pill();
+    }
+
+    /// Navigate selection up/down
+    fn navigate_selection(&mut self, delta: i32) {
+        let n_items = self.results_list.children().len() as i32;
+        if n_items > 0 {
+            self.selected_index = (self.selected_index + delta).rem_euclid(n_items);
+            if let Some(row) = self.results_list.row_at_index(self.selected_index) {
+                self.results_list.select_row(Some(&row));
+            }
+        }
+    }
+
+    /// Get the currently selected search result
+    fn selected_result(&self) -> Option<&SearchResult> {
+        self.current_results.get(self.selected_index as usize)
+    }
+
+    /// Hide the window, reset state, and optionally save config
+    fn hide_window(&mut self, config: &config::Config) {
+        // Exit command mode if active
+        self.exit_command_mode();
+        self.clear_entry();
+        self.window.hide();
+        self.is_visible = false;
+        // Save config position
+        if let Err(e) = config.save() {
+            eprintln!("[Nova] Failed to save config: {}", e);
+        }
+    }
+
+    /// Show the window, position it, and prepare for input
+    fn show_window(&mut self, config: &config::Config) {
+        // Ensure command mode is reset
+        self.exit_command_mode();
+
+        // Position window (use saved position or center)
+        position_window(&self.window, config);
+
+        // Show and present
+        self.window.show_all();
+        self.window.present_with_time(0);
+
+        // Ensure focus goes to entry
+        self.entry.set_text("");
+        self.entry.grab_focus();
+
+        // Force the window to be active
+        if let Some(gdk_window) = self.window.window() {
+            gdk_window.focus(0);
+            gdk_window.raise();
+        }
+
+        self.is_visible = true;
+        self.last_toggle = Instant::now();
+    }
+}
+
+/// Type alias for the shared UI state handle
+type UIStateHandle = Rc<RefCell<UIState>>;
+
 // Search results that appear in the launcher
 #[derive(Debug, Clone)]
 #[allow(dead_code)] // Fields used for matching, not all directly accessed
 enum SearchResult {
     App(services::AppEntry),
-    Command { id: String, name: String, description: String },
-    Alias { keyword: String, name: String, target: String },
-    Quicklink { keyword: String, name: String, url: String, has_query: bool },
-    QuicklinkWithQuery { keyword: String, name: String, url: String, query: String, resolved_url: String },
-    Script { id: String, name: String, description: String, path: PathBuf, has_argument: bool, output_mode: ScriptOutputMode },
-    ScriptWithArgument { id: String, name: String, description: String, path: PathBuf, argument: String, output_mode: ScriptOutputMode },
+    Command {
+        id: String,
+        name: String,
+        description: String,
+    },
+    Alias {
+        keyword: String,
+        name: String,
+        target: String,
+    },
+    Quicklink {
+        keyword: String,
+        name: String,
+        url: String,
+        has_query: bool,
+    },
+    QuicklinkWithQuery {
+        keyword: String,
+        name: String,
+        url: String,
+        query: String,
+        resolved_url: String,
+    },
+    Script {
+        id: String,
+        name: String,
+        description: String,
+        path: PathBuf,
+        has_argument: bool,
+        output_mode: ScriptOutputMode,
+    },
+    ScriptWithArgument {
+        id: String,
+        name: String,
+        description: String,
+        path: PathBuf,
+        argument: String,
+        output_mode: ScriptOutputMode,
+    },
+    // Extension commands
+    ExtensionCommand {
+        command: services::LoadedCommand,
+    },
+    ExtensionCommandWithArg {
+        command: services::LoadedCommand,
+        argument: String,
+    },
+    // Calculator
+    Calculation {
+        expression: String,
+        result: String,
+    },
+    // Clipboard history
+    ClipboardItem {
+        index: usize,
+        content: String,
+        preview: String,
+        time_ago: String,
+    },
+    // File search
+    FileResult {
+        name: String,
+        path: String,
+        is_dir: bool,
+    },
+    // Emoji picker
+    EmojiResult {
+        emoji: String,
+        name: String,
+        aliases: String,
+    },
+    // Unit converter
+    UnitConversion {
+        display: String,
+        result: String,
+    },
 }
 
 impl SearchResult {
@@ -67,6 +267,13 @@ impl SearchResult {
             SearchResult::QuicklinkWithQuery { name, .. } => name,
             SearchResult::Script { name, .. } => name,
             SearchResult::ScriptWithArgument { name, .. } => name,
+            SearchResult::ExtensionCommand { command } => &command.name,
+            SearchResult::ExtensionCommandWithArg { command, .. } => &command.name,
+            SearchResult::Calculation { result, .. } => result,
+            SearchResult::ClipboardItem { preview, .. } => preview,
+            SearchResult::FileResult { name, .. } => name,
+            SearchResult::EmojiResult { name, .. } => name, // "😀 grinning" formatted
+            SearchResult::UnitConversion { result, .. } => result, // "6.21 mi"
         }
     }
 
@@ -78,18 +285,163 @@ impl SearchResult {
             SearchResult::Quicklink { url, .. } => Some(url),
             SearchResult::QuicklinkWithQuery { resolved_url, .. } => Some(resolved_url),
             SearchResult::Script { description, .. } => {
-                if description.is_empty() { None } else { Some(description) }
+                if description.is_empty() {
+                    None
+                } else {
+                    Some(description)
+                }
             }
             SearchResult::ScriptWithArgument { description, .. } => {
-                if description.is_empty() { None } else { Some(description) }
+                if description.is_empty() {
+                    None
+                } else {
+                    Some(description)
+                }
             }
+            SearchResult::ExtensionCommand { command } => {
+                if command.description.is_empty() {
+                    None
+                } else {
+                    Some(&command.description)
+                }
+            }
+            SearchResult::ExtensionCommandWithArg { command, .. } => {
+                if command.description.is_empty() {
+                    None
+                } else {
+                    Some(&command.description)
+                }
+            }
+            SearchResult::Calculation { expression, .. } => Some(expression),
+            SearchResult::ClipboardItem { time_ago, .. } => Some(time_ago),
+            SearchResult::FileResult { path, .. } => Some(path),
+            SearchResult::EmojiResult { aliases, .. } => Some(aliases),
+            SearchResult::UnitConversion { display, .. } => Some(display), // "10 km = 6.21 mi"
         }
     }
 
+    /// Get the action to perform when this result is executed
+    fn execution_action(&self) -> executor::ExecutionAction {
+        use executor::{ExecutionAction, SystemCommand};
+
+        match self {
+            SearchResult::App(app) => ExecutionAction::LaunchApp {
+                exec: app.exec.clone(),
+                name: app.name.clone(),
+            },
+            SearchResult::Command { id, .. } => match id.as_str() {
+                "nova:settings" => ExecutionAction::OpenSettings,
+                "nova:quit" => ExecutionAction::Quit,
+                "system:lock" => ExecutionAction::SystemCommand {
+                    command: SystemCommand::Lock,
+                },
+                "system:sleep" => ExecutionAction::SystemCommand {
+                    command: SystemCommand::Sleep,
+                },
+                "system:logout" => ExecutionAction::SystemCommand {
+                    command: SystemCommand::Logout,
+                },
+                "system:restart" => ExecutionAction::SystemCommand {
+                    command: SystemCommand::Restart,
+                },
+                "system:shutdown" => ExecutionAction::SystemCommand {
+                    command: SystemCommand::Shutdown,
+                },
+                _ => ExecutionAction::NeedsInput,
+            },
+            SearchResult::Alias { target, .. } => ExecutionAction::RunShellCommand {
+                command: target.clone(),
+            },
+            SearchResult::Quicklink { url, has_query, .. } => {
+                if *has_query {
+                    ExecutionAction::NeedsInput
+                } else {
+                    ExecutionAction::OpenUrl { url: url.clone() }
+                }
+            }
+            SearchResult::QuicklinkWithQuery { resolved_url, .. } => ExecutionAction::OpenUrl {
+                url: resolved_url.clone(),
+            },
+            SearchResult::Script {
+                path,
+                has_argument,
+                output_mode,
+                ..
+            } => {
+                if *has_argument {
+                    ExecutionAction::NeedsInput
+                } else {
+                    ExecutionAction::RunScript {
+                        path: path.clone(),
+                        argument: None,
+                        output_mode: output_mode.clone(),
+                    }
+                }
+            }
+            SearchResult::ScriptWithArgument {
+                path,
+                argument,
+                output_mode,
+                ..
+            } => ExecutionAction::RunScript {
+                path: path.clone(),
+                argument: Some(argument.clone()),
+                output_mode: output_mode.clone(),
+            },
+            SearchResult::ExtensionCommand { command } => {
+                if command.has_argument {
+                    ExecutionAction::NeedsInput
+                } else {
+                    ExecutionAction::RunExtensionCommand {
+                        command: command.clone(),
+                        argument: None,
+                    }
+                }
+            }
+            SearchResult::ExtensionCommandWithArg { command, argument } => {
+                ExecutionAction::RunExtensionCommand {
+                    command: command.clone(),
+                    argument: Some(argument.clone()),
+                }
+            }
+            SearchResult::Calculation { result, expression } => {
+                let value = result.trim_start_matches("= ");
+                ExecutionAction::CopyToClipboard {
+                    content: value.to_string(),
+                    notification: format!("{} = {}", expression, value),
+                }
+            }
+            SearchResult::ClipboardItem {
+                content, preview, ..
+            } => ExecutionAction::CopyToClipboard {
+                content: content.clone(),
+                notification: preview.clone(),
+            },
+            SearchResult::FileResult { path, .. } => {
+                let full_path = if path.starts_with("~/") {
+                    dirs::home_dir()
+                        .map(|h| format!("{}{}", h.display(), &path[1..]))
+                        .unwrap_or_else(|| path.clone())
+                } else {
+                    path.clone()
+                };
+                ExecutionAction::OpenFile { path: full_path }
+            }
+            SearchResult::EmojiResult { emoji, name, .. } => ExecutionAction::CopyToClipboard {
+                content: emoji.clone(),
+                notification: name.clone(),
+            },
+            SearchResult::UnitConversion { result, display } => ExecutionAction::CopyToClipboard {
+                content: result.clone(),
+                notification: display.clone(),
+            },
+        }
+    }
 }
 
 fn get_system_commands() -> Vec<SearchResult> {
     vec![
+        // Nova commands
         SearchResult::Command {
             id: "nova:settings".to_string(),
             name: "Settings".to_string(),
@@ -100,12 +452,40 @@ fn get_system_commands() -> Vec<SearchResult> {
             name: "Quit Nova".to_string(),
             description: "Close Nova completely".to_string(),
         },
+        // System commands
+        SearchResult::Command {
+            id: "system:lock".to_string(),
+            name: "Lock Screen".to_string(),
+            description: "Lock the screen".to_string(),
+        },
+        SearchResult::Command {
+            id: "system:sleep".to_string(),
+            name: "Sleep".to_string(),
+            description: "Put computer to sleep".to_string(),
+        },
+        SearchResult::Command {
+            id: "system:logout".to_string(),
+            name: "Log Out".to_string(),
+            description: "Log out of current session".to_string(),
+        },
+        SearchResult::Command {
+            id: "system:restart".to_string(),
+            name: "Restart".to_string(),
+            description: "Restart the computer".to_string(),
+        },
+        SearchResult::Command {
+            id: "system:shutdown".to_string(),
+            name: "Shut Down".to_string(),
+            description: "Shut down the computer".to_string(),
+        },
     ]
 }
 
 fn search_with_commands(
     app_index: &services::AppIndex,
     custom_commands: &CustomCommandsIndex,
+    extension_manager: &services::ExtensionManager,
+    clipboard_history: &services::clipboard::ClipboardHistory,
     query: &str,
     max_results: usize,
 ) -> Vec<SearchResult> {
@@ -132,6 +512,74 @@ fn search_with_commands(
                 keyword: alias.keyword.clone(),
                 name: alias.name.clone(),
                 target: alias.target.clone(),
+            });
+        }
+    }
+
+    // 1.5. Calculator - try to evaluate as math expression
+    if let Some(calc_result) = services::calculator::evaluate(query) {
+        let formatted = services::calculator::format_result(calc_result);
+        results.push(SearchResult::Calculation {
+            expression: query.to_string(),
+            result: format!("= {}", formatted),
+        });
+    }
+
+    // 1.5.1. Unit converter - try to parse as unit conversion
+    if query.contains(" to ") {
+        if let Some(conversion) = services::units::convert(query) {
+            results.push(SearchResult::UnitConversion {
+                display: conversion.display(),
+                result: conversion.result(),
+            });
+        }
+    }
+
+    // 1.6. Clipboard history - trigger on "clip", "clipboard", "paste", "history"
+    let clipboard_keywords = ["clip", "clipboard", "paste", "history"];
+    if clipboard_keywords
+        .iter()
+        .any(|kw| query_lower.starts_with(kw))
+    {
+        // Extract optional filter after the keyword
+        let filter = query_parts.get(1).map(|s| s.to_lowercase());
+
+        let items = if let Some(ref f) = filter {
+            clipboard_history.search(f)
+        } else {
+            clipboard_history.all()
+        };
+
+        for (idx, entry) in items.iter().take(10).enumerate() {
+            results.push(SearchResult::ClipboardItem {
+                index: idx,
+                content: entry.content.clone(),
+                preview: entry.preview(60),
+                time_ago: entry.time_ago(),
+            });
+        }
+    }
+
+    // 1.7. File search - trigger on ~ or / prefix
+    if query.starts_with('~') || query.starts_with('/') {
+        for entry in services::file_search::search_files(query, 10) {
+            let icon_prefix = if entry.is_dir { "[D] " } else { "" };
+            results.push(SearchResult::FileResult {
+                name: format!("{}{}", icon_prefix, entry.display_name()),
+                path: entry.display_path(),
+                is_dir: entry.is_dir,
+            });
+        }
+    }
+
+    // 1.8. Emoji picker - trigger on : prefix
+    if query.starts_with(':') && query.len() > 1 {
+        let emoji_query = &query[1..]; // Strip the : prefix
+        for emoji in services::emoji::search(emoji_query, 10) {
+            results.push(SearchResult::EmojiResult {
+                emoji: emoji.char.to_string(),
+                name: format!("{} {}", emoji.char, emoji.name()),
+                aliases: emoji.aliases(),
             });
         }
     }
@@ -238,7 +686,38 @@ fn search_with_commands(
         }
     }
 
-    // 5. App results
+    // 5. Extension commands (before apps so they're not truncated)
+    for cmd in extension_manager.search_commands(&query_lower) {
+        let cmd_keyword = cmd.keyword.to_lowercase();
+
+        if cmd_keyword == keyword {
+            // Exact keyword match
+            if cmd.has_argument {
+                if let Some(ref arg) = remaining_query {
+                    results.push(SearchResult::ExtensionCommandWithArg {
+                        command: cmd.clone(),
+                        argument: arg.clone(),
+                    });
+                } else {
+                    results.push(SearchResult::ExtensionCommand {
+                        command: cmd.clone(),
+                    });
+                }
+            } else {
+                results.push(SearchResult::ExtensionCommand {
+                    command: cmd.clone(),
+                });
+            }
+        } else if cmd_keyword.starts_with(&keyword)
+            || cmd.name.to_lowercase().contains(&query_lower)
+        {
+            results.push(SearchResult::ExtensionCommand {
+                command: cmd.clone(),
+            });
+        }
+    }
+
+    // 6. App results (last since there are many)
     for app in app_index.search(query) {
         results.push(SearchResult::App(app.clone()));
     }
@@ -280,7 +759,12 @@ fn search_in_command_mode(
                 }]
             }
         }
-        ExtensionKind::Script { path, output_mode, description, .. } => {
+        ExtensionKind::Script {
+            path,
+            output_mode,
+            description,
+            ..
+        } => {
             if query.is_empty() {
                 vec![SearchResult::Script {
                     id: ext.keyword.clone(),
@@ -371,6 +855,59 @@ fn execute_script(
     Ok(())
 }
 
+/// Execute an extension command and handle its output
+fn execute_extension_command(
+    extension_manager: &Rc<services::ExtensionManager>,
+    command: &services::LoadedCommand,
+    argument: Option<&String>,
+) -> Result<(), String> {
+    use services::OutputMode;
+
+    let result = extension_manager.execute_command(command, argument.map(|s| s.as_str()))?;
+
+    // Check for script errors
+    if let Some(ref error) = result.error {
+        return Err(error.clone());
+    }
+
+    match command.output {
+        OutputMode::Silent => {
+            // Nothing to do
+        }
+        OutputMode::Notification => {
+            // Show first result item as notification
+            if let Some(item) = result.items.first() {
+                let title = &item.title;
+                let body = item.subtitle.as_deref().unwrap_or("");
+                show_notification(title, body)?;
+            }
+        }
+        OutputMode::Clipboard => {
+            // Copy first result to clipboard
+            if let Some(item) = result.items.first() {
+                copy_to_clipboard(&item.title)?;
+                show_notification("Copied to clipboard", &item.title)?;
+            }
+        }
+        OutputMode::List => {
+            // For list mode, we would show results in the UI
+            // For now, show as notification (TODO: implement inline results)
+            if !result.items.is_empty() {
+                let summary = result
+                    .items
+                    .iter()
+                    .take(3)
+                    .map(|i| i.title.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                show_notification("Extension Results", &summary)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 fn show_notification(title: &str, body: &str) -> Result<(), String> {
     Command::new("notify-send")
         .args([title, body])
@@ -418,7 +955,15 @@ fn get_nova_binary_path() -> String {
         .unwrap_or_else(|_| "nova".to_string())
 }
 
+fn set_shortcut_quiet(shortcut: &str) -> Result<(), String> {
+    set_shortcut_impl(shortcut, false)
+}
+
 fn set_shortcut(shortcut: &str) -> Result<(), String> {
+    set_shortcut_impl(shortcut, true)
+}
+
+fn set_shortcut_impl(shortcut: &str, verbose: bool) -> Result<(), String> {
     let nova_path = get_nova_binary_path();
 
     // GNOME custom keybindings use a path-based schema
@@ -426,7 +971,11 @@ fn set_shortcut(shortcut: &str) -> Result<(), String> {
 
     // First, add our binding to the list of custom keybindings
     let output = Command::new("gsettings")
-        .args(["get", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings"])
+        .args([
+            "get",
+            "org.gnome.settings-daemon.plugins.media-keys",
+            "custom-keybindings",
+        ])
         .output()
         .map_err(|e| format!("Failed to get current keybindings: {}", e))?;
 
@@ -444,7 +993,12 @@ fn set_shortcut(shortcut: &str) -> Result<(), String> {
         };
 
         Command::new("gsettings")
-            .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
+            .args([
+                "set",
+                "org.gnome.settings-daemon.plugins.media-keys",
+                "custom-keybindings",
+                &new_list,
+            ])
             .status()
             .map_err(|e| format!("Failed to update keybindings list: {}", e))?;
     }
@@ -468,13 +1022,17 @@ fn set_shortcut(shortcut: &str) -> Result<(), String> {
         .status()
         .map_err(|e| format!("Failed to set binding: {}", e))?;
 
-    println!("[Nova] Shortcut set to: {}", shortcut);
-    println!("[Nova] Command: {}", nova_path);
-    println!("\nCommon shortcuts:");
-    println!("  <Super>space     - Super+Space (may conflict with GNOME)");
-    println!("  <Alt>space       - Alt+Space (recommended)");
-    println!("  <Control>space   - Ctrl+Space");
-    println!("  <Super><Alt>n    - Super+Alt+N");
+    if verbose {
+        println!("[Nova] Shortcut set to: {}", shortcut);
+        println!("[Nova] Command: {}", nova_path);
+        println!("\nCommon shortcuts:");
+        println!("  <Super>space     - Super+Space (may conflict with GNOME)");
+        println!("  <Alt>space       - Alt+Space (recommended)");
+        println!("  <Control>space   - Ctrl+Space");
+        println!("  <Super><Alt>n    - Super+Alt+N");
+    } else {
+        println!("[Nova] Configured shortcut: {}", shortcut);
+    }
 
     Ok(())
 }
@@ -549,26 +1107,57 @@ fn main() {
         return;
     }
 
-    let app = Application::builder()
-        .application_id(APP_ID)
-        .build();
+    // Ensure keyboard shortcut is configured on startup
+    ensure_shortcut_configured();
+
+    let app = Application::builder().application_id(APP_ID).build();
 
     app.connect_activate(build_ui);
     app.run();
 }
 
-/// Update the command pill visibility and text based on command mode state
-fn update_command_pill(pill: &Label, entry: &Entry, mode_state: &CommandModeState) {
-    if let Some(ref ext) = mode_state.active_extension {
-        pill.set_text(ext.pill_text());
-        pill.set_visible(true);
-        entry.set_placeholder_text(Some(&format!("Search {}...", ext.name)));
-    } else {
-        pill.set_visible(false);
-        entry.set_placeholder_text(Some("Search apps..."));
+/// Ensure the keyboard shortcut is configured in GNOME
+fn ensure_shortcut_configured() {
+    let config = config::Config::load();
+    let hotkey = &config.general.hotkey;
+    let nova_path = get_nova_binary_path();
+
+    // Check if our binding already exists with correct shortcut and command
+    let binding_path = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nova/";
+    let schema = "org.gnome.settings-daemon.plugins.media-keys.custom-keybinding";
+    let schema_path = format!("{}:{}", schema, binding_path);
+
+    // Check current binding
+    let current_binding = Command::new("gsettings")
+        .args(["get", &schema_path, "binding"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    let current_binding = current_binding.trim().trim_matches('\'');
+
+    // Check current command path
+    let current_command = Command::new("gsettings")
+        .args(["get", &schema_path, "command"])
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .unwrap_or_default();
+    let current_command = current_command.trim().trim_matches('\'');
+
+    // Only skip if BOTH binding and command are correct
+    if current_binding == hotkey && current_command == nova_path {
+        return;
+    }
+
+    // Configure the shortcut silently
+    if let Err(e) = set_shortcut_quiet(hotkey) {
+        eprintln!("[Nova] Warning: Could not set keyboard shortcut: {}", e);
+        eprintln!(
+            "[Nova] You may need to configure it manually in GNOME Settings > Keyboard > Shortcuts"
+        );
     }
 }
-
 fn build_ui(app: &Application) {
     // Load config (stored in Rc<RefCell> for runtime updates like position)
     let config = Rc::new(RefCell::new(config::Config::load()));
@@ -579,9 +1168,13 @@ fn build_ui(app: &Application) {
         eprintln!("[Nova] Failed to set autostart: {}", e);
     }
 
-    // Initialize app index and custom commands
+    // Initialize app index, custom commands, extensions, and clipboard history
     let app_index = Rc::new(AppIndex::new());
     let custom_commands = Rc::new(RefCell::new(CustomCommandsIndex::new(&config.borrow())));
+    let extension_manager = Rc::new(services::ExtensionManager::load(
+        &services::get_extensions_dir(),
+    ));
+    let clipboard_history = Rc::new(RefCell::new(services::clipboard::ClipboardHistory::new(50)));
 
     let window = ApplicationWindow::builder()
         .application(app)
@@ -611,7 +1204,9 @@ fn build_ui(app: &Application) {
     // Load CSS from appearance settings
     let provider = CssProvider::new();
     let css = config::generate_css(&config.borrow().appearance);
-    provider.load_from_data(css.as_bytes()).expect("Failed to load CSS");
+    provider
+        .load_from_data(css.as_bytes())
+        .expect("Failed to load CSS");
     if let Some(screen) = Screen::default() {
         StyleContext::add_provider_for_screen(
             &screen,
@@ -640,7 +1235,9 @@ fn build_ui(app: &Application) {
 
     // Container for pill + entry (replaces the old nova-entry styling)
     let entry_container = gtk::Box::new(Orientation::Horizontal, 0);
-    entry_container.style_context().add_class("nova-entry-container");
+    entry_container
+        .style_context()
+        .add_class("nova-entry-container");
     entry_container.pack_start(&command_pill, false, false, 0);
     entry_container.pack_start(&entry, true, true, 0);
 
@@ -684,19 +1281,22 @@ fn build_ui(app: &Application) {
         false
     });
 
-    // State
-    let window_ref = Rc::new(RefCell::new(window.clone()));
-    let is_visible = Rc::new(RefCell::new(false));
-    let entry_ref = Rc::new(RefCell::new(entry.clone()));
-    let results_ref = Rc::new(RefCell::new(results_list.clone()));
-    let selected_index = Rc::new(RefCell::new(0i32));
-    let last_toggle = Rc::new(RefCell::new(Instant::now()));
-    let is_clearing = Rc::new(RefCell::new(false)); // Guard to prevent callback loops
-    let config_ref = config.clone(); // For use in toggle handler
+    // Consolidated UI state (reduces 15+ Rc<RefCell> to just one)
+    let ui_state: UIStateHandle = Rc::new(RefCell::new(UIState {
+        window: window.clone(),
+        entry: entry.clone(),
+        results_list: results_list.clone(),
+        command_pill: command_pill.clone(),
+        is_visible: false,
+        selected_index: 0,
+        current_results: Vec::new(),
+        command_mode: CommandModeState::default(),
+        is_clearing: false,
+        last_toggle: Instant::now(),
+    }));
 
-    // Command mode state
-    let command_mode = Rc::new(RefCell::new(CommandModeState::default()));
-    let command_pill_ref = Rc::new(RefCell::new(command_pill.clone()));
+    // Config reference for use in handlers
+    let config_ref = config.clone();
 
     // Extension index for fast keyword lookup
     let extension_index = Rc::new(RefCell::new(ExtensionIndex::from_custom_commands(
@@ -705,346 +1305,254 @@ fn build_ui(app: &Application) {
         &config.borrow().quicklinks,
     )));
 
-    // Store current search results for selection handling
-    let current_results: Rc<RefCell<Vec<SearchResult>>> = Rc::new(RefCell::new(Vec::new()));
-
     // Update results when search text changes
+    let ui_state_for_search = ui_state.clone();
     let app_index_search = app_index.clone();
     let custom_commands_search = custom_commands.clone();
-    let results_for_search = results_ref.clone();
-    let selected_for_search = selected_index.clone();
-    let is_clearing_for_search = is_clearing.clone();
-    let current_results_for_search = current_results.clone();
-    let command_mode_for_search = command_mode.clone();
+    let extension_manager_search = extension_manager.clone();
+    let clipboard_history_search = clipboard_history.clone();
     let extension_index_for_search = extension_index.clone();
-    let command_pill_for_search = command_pill_ref.clone();
     entry.connect_changed(move |entry| {
+        let mut state = ui_state_for_search.borrow_mut();
+
         // Skip if we're clearing the entry programmatically (prevents RefCell conflicts)
-        if *is_clearing_for_search.borrow() {
+        if state.is_clearing {
             return;
         }
 
         let query = entry.text().to_string();
-        let mut mode = command_mode_for_search.borrow_mut();
 
         // Check for command mode entry: "keyword " pattern (space at end)
-        if !mode.is_active() && query.ends_with(' ') && query.len() > 1 {
+        if !state.command_mode.is_active() && query.ends_with(' ') && query.len() > 1 {
             let keyword = query.trim();
             if let Some(ext) = extension_index_for_search.borrow().get_by_keyword(keyword) {
                 if ext.accepts_query() {
-                    // Enter command mode
-                    mode.enter_mode(ext.clone());
-                    drop(mode);
-
-                    // Clear the entry (pill shows the keyword now)
-                    *is_clearing_for_search.borrow_mut() = true;
-                    entry.set_text("");
-                    *is_clearing_for_search.borrow_mut() = false;
-
-                    // Update pill visibility
-                    update_command_pill(
-                        &command_pill_for_search.borrow(),
-                        entry,
-                        &command_mode_for_search.borrow(),
-                    );
+                    // Enter command mode using UIState method
+                    state.enter_command_mode(ext.clone());
 
                     // Show empty state results for command mode
-                    let results = search_in_command_mode(&command_mode_for_search.borrow(), "", max_results);
-                    update_results_list(&results_for_search.borrow(), &results);
-                    *current_results_for_search.borrow_mut() = results;
-                    *selected_for_search.borrow_mut() = 0;
-                    if let Some(row) = results_for_search.borrow().row_at_index(0) {
-                        results_for_search.borrow().select_row(Some(&row));
-                    }
+                    let results = search_in_command_mode(&state.command_mode, "", max_results);
+                    state.update_results(results);
                     return;
                 }
             }
         }
 
         // Perform search based on mode
-        let results = if mode.is_active() {
-            drop(mode);
-            search_in_command_mode(&command_mode_for_search.borrow(), &query, max_results)
+        let results = if state.command_mode.is_active() {
+            search_in_command_mode(&state.command_mode, &query, max_results)
         } else {
-            drop(mode);
-            search_with_commands(&app_index_search, &custom_commands_search.borrow(), &query, max_results)
+            search_with_commands(
+                &app_index_search,
+                &custom_commands_search.borrow(),
+                &extension_manager_search,
+                &clipboard_history_search.borrow(),
+                &query,
+                max_results,
+            )
         };
 
-        update_results_list(&results_for_search.borrow(), &results);
-        *current_results_for_search.borrow_mut() = results;
-        *selected_for_search.borrow_mut() = 0;
-        if let Some(row) = results_for_search.borrow().row_at_index(0) {
-            results_for_search.borrow().select_row(Some(&row));
-        }
+        state.update_results(results);
     });
 
     // Handle keyboard events
-    let window_for_key = window_ref.clone();
-    let visible_for_key = is_visible.clone();
-    let results_for_key = results_ref.clone();
-    let selected_for_key = selected_index.clone();
-    let current_results_for_key = current_results.clone();
-    let is_clearing_for_key = is_clearing.clone();
+    let ui_state_for_key = ui_state.clone();
     let app_for_key = app.clone();
     let config_for_key = config_ref.clone();
-    let command_mode_for_key = command_mode.clone();
-    let command_pill_for_key = command_pill_ref.clone();
     let app_index_for_key = app_index.clone();
     let custom_commands_for_key = custom_commands.clone();
     let extension_index_for_key = extension_index.clone();
+    let extension_manager_for_key = extension_manager.clone();
+    let clipboard_history_for_key = clipboard_history.clone();
 
-    entry.connect_key_press_event(move |entry_widget, event| {
+    entry.connect_key_press_event(move |_entry_widget, event| {
         let key = event.keyval();
-        let results_list = results_for_key.borrow();
-        let mut selected = selected_for_key.borrow_mut();
 
         match key {
             gdk::keys::constants::Tab | gdk::keys::constants::ISO_Left_Tab => {
+                let mut state = ui_state_for_key.borrow_mut();
                 // Tab enters command mode for selected extension (if it accepts queries)
-                // Also prevents Tab from navigating to other UI elements
-                let mode = command_mode_for_key.borrow();
-                if !mode.is_active() {
-                    let selected_idx = *selected as usize;
-                    drop(mode);
-                    drop(results_list);
-                    drop(selected);
-
-                    let results = current_results_for_key.borrow();
-                    if let Some(result) = results.get(selected_idx) {
+                if !state.command_mode.is_active() {
+                    let selected_idx = state.selected_index as usize;
+                    if let Some(result) = state.current_results.get(selected_idx).cloned() {
                         // Check if this result is an extension that accepts queries
-                        let keyword = match result {
-                            SearchResult::Quicklink { keyword, has_query: true, .. } => Some(keyword.clone()),
-                            SearchResult::Script { id, has_argument: true, .. } => Some(id.clone()),
+                        let keyword = match &result {
+                            SearchResult::Quicklink {
+                                keyword,
+                                has_query: true,
+                                ..
+                            } => Some(keyword.clone()),
+                            SearchResult::Script {
+                                id,
+                                has_argument: true,
+                                ..
+                            } => Some(id.clone()),
                             _ => None,
                         };
 
                         if let Some(kw) = keyword {
-                            drop(results);
-                            // Look up the extension and enter command mode
-                            if let Some(ext) = extension_index_for_key.borrow().get_by_keyword(&kw) {
+                            if let Some(ext) = extension_index_for_key.borrow().get_by_keyword(&kw)
+                            {
                                 if ext.accepts_query() {
-                                    command_mode_for_key.borrow_mut().enter_mode(ext.clone());
-
-                                    // Clear entry and update pill
-                                    *is_clearing_for_key.borrow_mut() = true;
-                                    entry_widget.set_text("");
-                                    *is_clearing_for_key.borrow_mut() = false;
-
-                                    update_command_pill(
-                                        &command_pill_for_key.borrow(),
-                                        entry_widget,
-                                        &command_mode_for_key.borrow(),
+                                    state.enter_command_mode(ext.clone());
+                                    let results = search_in_command_mode(
+                                        &state.command_mode,
+                                        "",
+                                        max_results,
                                     );
-
-                                    // Show command mode results
-                                    let new_results = search_in_command_mode(&command_mode_for_key.borrow(), "", max_results);
-                                    update_results_list(&results_for_key.borrow(), &new_results);
-                                    *current_results_for_key.borrow_mut() = new_results;
-                                    *selected_for_key.borrow_mut() = 0;
-                                    if let Some(row) = results_for_key.borrow().row_at_index(0) {
-                                        results_for_key.borrow().select_row(Some(&row));
-                                    }
+                                    state.update_results(results);
                                 }
                             }
                         }
                     }
                 }
-                // Always stop Tab from propagating (prevents focus moving to other widgets)
                 return glib::Propagation::Stop;
             }
             gdk::keys::constants::BackSpace => {
-                // Exit command mode if backspace with empty entry
-                let mode = command_mode_for_key.borrow();
-                if mode.is_active() && entry_widget.text().is_empty() {
-                    drop(results_list);
-                    drop(selected);
-                    drop(mode);
-
-                    // Exit command mode
-                    command_mode_for_key.borrow_mut().exit_mode();
-                    update_command_pill(
-                        &command_pill_for_key.borrow(),
-                        entry_widget,
-                        &command_mode_for_key.borrow(),
-                    );
-
-                    // Refresh search with normal mode
+                let mut state = ui_state_for_key.borrow_mut();
+                if state.command_mode.is_active() && state.entry.text().is_empty() {
+                    state.exit_command_mode();
                     let results = search_with_commands(
                         &app_index_for_key,
                         &custom_commands_for_key.borrow(),
+                        &extension_manager_for_key,
+                        &clipboard_history_for_key.borrow(),
                         "",
                         max_results,
                     );
-                    update_results_list(&results_for_key.borrow(), &results);
-                    *current_results_for_key.borrow_mut() = results;
-                    *selected_for_key.borrow_mut() = 0;
-                    if let Some(row) = results_for_key.borrow().row_at_index(0) {
-                        results_for_key.borrow().select_row(Some(&row));
-                    }
-
+                    state.update_results(results);
                     return glib::Propagation::Stop;
                 }
                 return glib::Propagation::Proceed;
             }
             gdk::keys::constants::Escape => {
-                let mode = command_mode_for_key.borrow();
-                let in_command_mode = mode.is_active();
-                drop(mode);
-                drop(results_list);
-                drop(selected);
-
-                if in_command_mode {
+                let mut state = ui_state_for_key.borrow_mut();
+                if state.command_mode.is_active() {
                     // First Escape: exit command mode, don't hide window
-                    command_mode_for_key.borrow_mut().exit_mode();
-                    *is_clearing_for_key.borrow_mut() = true;
-                    entry_widget.set_text("");
-                    *is_clearing_for_key.borrow_mut() = false;
-                    update_command_pill(
-                        &command_pill_for_key.borrow(),
-                        entry_widget,
-                        &command_mode_for_key.borrow(),
-                    );
-
-                    // Refresh search with normal mode
+                    state.exit_command_mode();
+                    state.clear_entry();
                     let results = search_with_commands(
                         &app_index_for_key,
                         &custom_commands_for_key.borrow(),
+                        &extension_manager_for_key,
+                        &clipboard_history_for_key.borrow(),
                         "",
                         max_results,
                     );
-                    update_results_list(&results_for_key.borrow(), &results);
-                    *current_results_for_key.borrow_mut() = results;
-                    *selected_for_key.borrow_mut() = 0;
-                    if let Some(row) = results_for_key.borrow().row_at_index(0) {
-                        results_for_key.borrow().select_row(Some(&row));
-                    }
+                    state.update_results(results);
                 } else {
-                    // Second Escape (or first when not in command mode): hide window
-                    *is_clearing_for_key.borrow_mut() = true;
-                    entry_widget.set_text("");
-                    *is_clearing_for_key.borrow_mut() = false;
-                    window_for_key.borrow().hide();
-                    *visible_for_key.borrow_mut() = false;
-                    // Save position to config
-                    if let Err(e) = config_for_key.borrow().save() {
-                        eprintln!("[Nova] Failed to save config: {}", e);
-                    }
+                    // Hide window
+                    state.hide_window(&config_for_key.borrow());
                 }
                 return glib::Propagation::Stop;
             }
             gdk::keys::constants::Return | gdk::keys::constants::KP_Enter => {
-                let selected_idx = *selected as usize;
-                drop(results_list);
-                drop(selected);
+                // Clone needed data before borrowing state
+                let selected_result = {
+                    let state = ui_state_for_key.borrow();
+                    state
+                        .current_results
+                        .get(state.selected_index as usize)
+                        .cloned()
+                };
 
-                let results = current_results_for_key.borrow();
-                if let Some(result) = results.get(selected_idx) {
-                    // Helper closure to hide window, reset command mode, and save config
-                    let hide_window = || {
-                        // Exit command mode if active
-                        command_mode_for_key.borrow_mut().exit_mode();
-                        update_command_pill(
-                            &command_pill_for_key.borrow(),
-                            entry_widget,
-                            &command_mode_for_key.borrow(),
-                        );
+                if let Some(result) = selected_result {
+                    use executor::ExecutionAction;
 
-                        *is_clearing_for_key.borrow_mut() = true;
-                        entry_widget.set_text("");
-                        *is_clearing_for_key.borrow_mut() = false;
-                        window_for_key.borrow().hide();
-                        *visible_for_key.borrow_mut() = false;
-                        // Save position to config
-                        if let Err(e) = config_for_key.borrow().save() {
-                            eprintln!("[Nova] Failed to save config: {}", e);
-                        }
+                    let do_hide = || {
+                        ui_state_for_key
+                            .borrow_mut()
+                            .hide_window(&config_for_key.borrow());
                     };
 
-                    match result {
-                        SearchResult::App(app) => {
-                            if let Err(e) = app.launch() {
-                                eprintln!("[Nova] Launch error: {}", e);
+                    match result.execution_action() {
+                        ExecutionAction::LaunchApp { exec, name } => {
+                            // Find the app entry to use its launch method
+                            if let SearchResult::App(app) = &result {
+                                if let Err(e) = app.launch() {
+                                    eprintln!("[Nova] Launch error for {}: {}", name, e);
+                                } else {
+                                    do_hide();
+                                }
                             } else {
-                                hide_window();
-                            }
-                        }
-                        SearchResult::Command { id, .. } => {
-                            hide_window();
-                            match id.as_str() {
-                                "nova:settings" => {
-                                    let app_clone = app_for_key.clone();
-                                    glib::idle_add_local_once(move || {
-                                        settings::show_settings_window(&app_clone);
-                                    });
-                                }
-                                "nova:quit" => {
-                                    std::process::exit(0);
-                                }
-                                _ => {}
-                            }
-                        }
-                        SearchResult::Alias { target, .. } => {
-                            hide_window();
-                            // Try to launch as shell command
-                            if let Err(e) = Command::new("sh")
-                                .args(["-c", target])
-                                .spawn()
-                            {
-                                eprintln!("[Nova] Alias launch error: {}", e);
-                            }
-                        }
-                        SearchResult::Quicklink { url, has_query, .. } => {
-                            // Don't open if query is expected but not provided
-                            if !*has_query {
-                                hide_window();
-                                if let Err(e) = open_url(url) {
-                                    eprintln!("[Nova] Quicklink error: {}", e);
+                                // Fallback: launch via exec string directly
+                                if Command::new("sh").args(["-c", &exec]).spawn().is_ok() {
+                                    do_hide();
                                 }
                             }
                         }
-                        SearchResult::QuicklinkWithQuery { resolved_url, .. } => {
-                            hide_window();
-                            if let Err(e) = open_url(resolved_url) {
-                                eprintln!("[Nova] Quicklink error: {}", e);
-                            }
+                        ExecutionAction::OpenSettings => {
+                            do_hide();
+                            let app_clone = app_for_key.clone();
+                            glib::idle_add_local_once(move || {
+                                settings::show_settings_window(&app_clone);
+                            });
                         }
-                        SearchResult::Script { path, has_argument, output_mode, .. } => {
-                            // Don't execute if argument is expected but not provided
-                            if !*has_argument {
-                                hide_window();
-                                if let Err(e) = execute_script(path, None, output_mode) {
-                                    eprintln!("[Nova] Script error: {}", e);
+                        ExecutionAction::Quit => {
+                            do_hide();
+                            std::process::exit(0);
+                        }
+                        ExecutionAction::SystemCommand { command } => {
+                            do_hide();
+                            let (cmd, args) = command.command_args();
+                            if Command::new(cmd).args(&args).spawn().is_err() {
+                                // Fallback for logout
+                                if matches!(command, executor::SystemCommand::Logout) {
+                                    let (cmd, args) = executor::SystemCommand::logout_fallback();
+                                    let _ = Command::new(cmd).args(&args).spawn();
                                 }
                             }
                         }
-                        SearchResult::ScriptWithArgument { path, argument, output_mode, .. } => {
-                            hide_window();
-                            if let Err(e) = execute_script(path, Some(argument), output_mode) {
-                                eprintln!("[Nova] Script error: {}", e);
+                        ExecutionAction::RunShellCommand { command } => {
+                            do_hide();
+                            let _ = Command::new("sh").args(["-c", &command]).spawn();
+                        }
+                        ExecutionAction::OpenUrl { url } => {
+                            do_hide();
+                            let _ = open_url(&url);
+                        }
+                        ExecutionAction::RunScript {
+                            path,
+                            argument,
+                            output_mode,
+                        } => {
+                            do_hide();
+                            let _ = execute_script(&path, argument.as_ref(), &output_mode);
+                        }
+                        ExecutionAction::RunExtensionCommand { command, argument } => {
+                            do_hide();
+                            let _ = execute_extension_command(
+                                &extension_manager_for_key,
+                                &command,
+                                argument.as_ref(),
+                            );
+                        }
+                        ExecutionAction::CopyToClipboard {
+                            content,
+                            notification,
+                        } => {
+                            do_hide();
+                            if copy_to_clipboard(&content).is_ok() {
+                                let _ = show_notification("Copied", &notification);
                             }
+                        }
+                        ExecutionAction::OpenFile { path } => {
+                            do_hide();
+                            let _ = Command::new("xdg-open").arg(&path).spawn();
+                        }
+                        ExecutionAction::NeedsInput => {
+                            // Don't hide - waiting for user input
                         }
                     }
                 }
                 return glib::Propagation::Stop;
             }
             gdk::keys::constants::Up | gdk::keys::constants::KP_Up => {
-                let n_items = results_list.children().len() as i32;
-                if n_items > 0 {
-                    *selected = (*selected - 1).rem_euclid(n_items);
-                    if let Some(row) = results_list.row_at_index(*selected) {
-                        results_list.select_row(Some(&row));
-                    }
-                }
+                ui_state_for_key.borrow_mut().navigate_selection(-1);
                 return glib::Propagation::Stop;
             }
             gdk::keys::constants::Down | gdk::keys::constants::KP_Down => {
-                let n_items = results_list.children().len() as i32;
-                if n_items > 0 {
-                    *selected = (*selected + 1).rem_euclid(n_items);
-                    if let Some(row) = results_list.row_at_index(*selected) {
-                        results_list.select_row(Some(&row));
-                    }
-                }
+                ui_state_for_key.borrow_mut().navigate_selection(1);
                 return glib::Propagation::Stop;
             }
             _ => {}
@@ -1079,96 +1587,51 @@ fn build_ui(app: &Application) {
         }
     });
 
-    // Poll for IPC messages
-    let window_for_ipc = window_ref.clone();
-    let visible_for_ipc = is_visible.clone();
-    let entry_for_ipc = entry_ref.clone();
-    let results_for_ipc = results_ref.clone();
+    // Poll for IPC messages (toggle window visibility)
+    let ui_state_for_ipc = ui_state.clone();
     let app_index_for_ipc = app_index.clone();
     let custom_commands_for_ipc = custom_commands.clone();
-    let selected_for_ipc = selected_index.clone();
-    let last_toggle_for_ipc = last_toggle.clone();
-    let is_clearing_for_ipc = is_clearing.clone();
-    let current_results_for_ipc = current_results.clone();
+    let extension_manager_for_ipc = extension_manager.clone();
+    let clipboard_history_for_ipc = clipboard_history.clone();
     let config_for_ipc = config_ref.clone();
-    let command_mode_for_ipc = command_mode.clone();
-    let command_pill_for_ipc = command_pill_ref.clone();
 
     glib::timeout_add_local(std::time::Duration::from_millis(50), move || {
         if let Ok(_msg) = rx.try_recv() {
-            // Record toggle timestamp for focus-out debounce
-            *last_toggle_for_ipc.borrow_mut() = Instant::now();
+            let mut state = ui_state_for_ipc.borrow_mut();
 
-            let window = window_for_ipc.borrow();
-            let entry = entry_for_ipc.borrow();
-            let mut visible = visible_for_ipc.borrow_mut();
-
-            if *visible {
-                // Reset command mode when hiding
-                command_mode_for_ipc.borrow_mut().exit_mode();
-                update_command_pill(
-                    &command_pill_for_ipc.borrow(),
-                    &entry,
-                    &command_mode_for_ipc.borrow(),
-                );
-
-                *is_clearing_for_ipc.borrow_mut() = true;
-                entry.set_text("");
-                *is_clearing_for_ipc.borrow_mut() = false;
-                window.hide();
-                *visible = false;
-
-                // Save position to config file when hiding
-                if let Err(e) = config_for_ipc.borrow().save() {
-                    eprintln!("[Nova] Failed to save config: {}", e);
-                }
+            if state.is_visible {
+                // Hide window
+                state.hide_window(&config_for_ipc.borrow());
             } else {
-                // Ensure command mode is reset when showing
-                command_mode_for_ipc.borrow_mut().exit_mode();
-                update_command_pill(
-                    &command_pill_for_ipc.borrow(),
-                    &entry,
-                    &command_mode_for_ipc.borrow(),
-                );
-
                 // Show initial results (apps only when empty query)
-                let results = search_with_commands(&app_index_for_ipc, &custom_commands_for_ipc.borrow(), "", max_results);
-                update_results_list(&results_for_ipc.borrow(), &results);
-                *current_results_for_ipc.borrow_mut() = results;
-                *selected_for_ipc.borrow_mut() = 0;
-                if let Some(row) = results_for_ipc.borrow().row_at_index(0) {
-                    results_for_ipc.borrow().select_row(Some(&row));
-                }
+                let results = search_with_commands(
+                    &app_index_for_ipc,
+                    &custom_commands_for_ipc.borrow(),
+                    &extension_manager_for_ipc,
+                    &clipboard_history_for_ipc.borrow(),
+                    "",
+                    max_results,
+                );
+                state.update_results(results);
 
-                // Position window (use saved position or center)
-                position_window(&window, &config_for_ipc.borrow());
-
-                // Show and present with current timestamp to bypass focus-stealing prevention
-                window.show_all();
-
-                // Use present_with_time - 0 means "current time" in X11
-                window.present_with_time(0);
-
-                // Ensure focus goes to entry
-                entry.set_text("");
-                entry.grab_focus();
-
-                // Force the window to be active
-                if let Some(gdk_window) = window.window() {
-                    gdk_window.focus(0);
-                    gdk_window.raise();
-                }
-
-                *visible = true;
+                // Show window
+                state.show_window(&config_for_ipc.borrow());
             }
         }
+        ControlFlow::Continue
+    });
+
+    // Poll clipboard for changes (every 500ms)
+    glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
+        clipboard_history.borrow_mut().poll();
         ControlFlow::Continue
     });
 
     println!("[Nova] Started - Super+Space to toggle");
 }
 
-fn update_results_list(list: &ListBox, results: &[SearchResult]) {
+/// Render search results into the GTK ListBox widget
+fn render_results_list(list: &ListBox, results: &[SearchResult]) {
     // Clear existing rows
     for child in list.children() {
         list.remove(&child);

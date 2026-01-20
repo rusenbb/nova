@@ -1,4 +1,4 @@
-use crate::config::{AliasConfig, QuicklinkConfig, Config};
+use crate::config::{AliasConfig, Config, QuicklinkConfig};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};

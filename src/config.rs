@@ -70,6 +70,9 @@ pub struct AppearanceConfig {
     pub window_width: i32,
     pub window_x: Option<i32>,
     pub window_y: Option<i32>,
+    // Description text customization
+    pub description_size: u32,
+    pub description_color: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,6 +121,8 @@ impl Default for AppearanceConfig {
             window_width: 600,
             window_x: None,
             window_y: None,
+            description_size: 13,
+            description_color: None, // Uses theme's subtext color by default
         }
     }
 }
@@ -135,7 +140,12 @@ impl Config {
     /// Get the config file path
     pub fn config_path() -> PathBuf {
         dirs::config_dir()
-            .unwrap_or_else(|| PathBuf::from("~/.config"))
+            .unwrap_or_else(|| {
+                // Fallback: ~ is not expanded by PathBuf, so use dirs::home_dir
+                dirs::home_dir()
+                    .map(|h| h.join(".config"))
+                    .unwrap_or_else(|| PathBuf::from("/tmp"))
+            })
             .join("nova")
             .join("config.toml")
     }
@@ -144,23 +154,41 @@ impl Config {
     pub fn load() -> Self {
         let path = Self::config_path();
 
-        if path.exists() {
+        let mut config = if path.exists() {
             match fs::read_to_string(&path) {
-                Ok(content) => {
-                    match toml::from_str(&content) {
-                        Ok(config) => return config,
-                        Err(e) => {
-                            eprintln!("[Nova] Failed to parse config: {}", e);
-                        }
+                Ok(content) => match toml::from_str(&content) {
+                    Ok(config) => config,
+                    Err(e) => {
+                        eprintln!("[Nova] Failed to parse config: {}", e);
+                        Self::default()
                     }
-                }
+                },
                 Err(e) => {
                     eprintln!("[Nova] Failed to read config: {}", e);
+                    Self::default()
                 }
             }
-        }
+        } else {
+            Self::default()
+        };
 
-        Self::default()
+        config.validate();
+        config
+    }
+
+    /// Validate and clamp config values to acceptable ranges
+    fn validate(&mut self) {
+        // Clamp opacity to valid range (0.5 - 1.0)
+        self.appearance.opacity = self.appearance.opacity.clamp(0.5, 1.0);
+
+        // Clamp max_results to reasonable range (1 - 20)
+        self.behavior.max_results = self.behavior.max_results.clamp(1, 20);
+
+        // Clamp window_width to reasonable range (400 - 1200)
+        self.appearance.window_width = self.appearance.window_width.clamp(400, 1200);
+
+        // Clamp description_size to reasonable range (10 - 24)
+        self.appearance.description_size = self.appearance.description_size.clamp(10, 24);
     }
 
     /// Save config to file
@@ -176,8 +204,7 @@ impl Config {
         let content = toml::to_string_pretty(self)
             .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-        fs::write(&path, content)
-            .map_err(|e| format!("Failed to write config: {}", e))?;
+        fs::write(&path, content).map_err(|e| format!("Failed to write config: {}", e))?;
 
         Ok(())
     }
@@ -195,8 +222,8 @@ pub fn set_autostart(enabled: bool) -> Result<(), String> {
     let desktop_file = autostart_dir.join("nova.desktop");
 
     if enabled {
-        let exe_path = std::env::current_exe()
-            .map_err(|e| format!("Failed to get executable path: {}", e))?;
+        let exe_path =
+            std::env::current_exe().map_err(|e| format!("Failed to get executable path: {}", e))?;
 
         let content = format!(
             "[Desktop Entry]\n\
@@ -259,8 +286,11 @@ pub fn generate_css(config: &AppearanceConfig) -> String {
     let (bg_rgb, text_color, subtext_color) = get_theme_colors(&config.theme);
     let (accent_r, accent_g, accent_b) = parse_hex_color(&config.accent_color);
     let opacity = config.opacity;
+    let desc_size = config.description_size;
+    let desc_color = config.description_color.as_deref().unwrap_or(subtext_color);
 
-    format!(r#"
+    format!(
+        r#"
     window {{
         background-color: transparent;
     }}
@@ -312,8 +342,8 @@ pub fn generate_css(config: &AppearanceConfig) -> String {
     }}
 
     .nova-result-desc {{
-        font-size: 12px;
-        color: {subtext_color};
+        font-size: {desc_size}px;
+        color: {desc_color};
         margin-top: 2px;
     }}
 
@@ -352,13 +382,14 @@ pub fn generate_css(config: &AppearanceConfig) -> String {
         border: none;
     }}
 "#,
-    bg_rgb = bg_rgb,
-    opacity = opacity,
-    text_color = text_color,
-    subtext_color = subtext_color,
-    accent_r = accent_r,
-    accent_g = accent_g,
-    accent_b = accent_b,
-    accent_color = config.accent_color,
+        bg_rgb = bg_rgb,
+        opacity = opacity,
+        text_color = text_color,
+        desc_color = desc_color,
+        desc_size = desc_size,
+        accent_r = accent_r,
+        accent_g = accent_g,
+        accent_b = accent_b,
+        accent_color = config.accent_color,
     )
 }

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::config::{AliasConfig, QuicklinkConfig};
 use super::custom_commands::{CustomCommandsIndex, ScriptOutputMode};
+use crate::config::{AliasConfig, QuicklinkConfig};
 
 /// Unified abstraction for keyword-triggered commands (Aliases, Quicklinks, Scripts)
 #[derive(Debug, Clone)]
@@ -63,7 +63,11 @@ pub struct ExtensionIndex {
 
 impl ExtensionIndex {
     /// Build an ExtensionIndex from CustomCommandsIndex
-    pub fn from_custom_commands(index: &CustomCommandsIndex, aliases: &[AliasConfig], quicklinks: &[QuicklinkConfig]) -> Self {
+    pub fn from_custom_commands(
+        index: &CustomCommandsIndex,
+        aliases: &[AliasConfig],
+        quicklinks: &[QuicklinkConfig],
+    ) -> Self {
         let mut extensions = Vec::new();
         let mut by_keyword = HashMap::new();
 
@@ -116,7 +120,10 @@ impl ExtensionIndex {
             extensions.push(ext);
         }
 
-        Self { extensions, by_keyword }
+        Self {
+            extensions,
+            by_keyword,
+        }
     }
 
     /// Get an extension by exact keyword match (case-insensitive)

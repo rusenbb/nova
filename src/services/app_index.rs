@@ -20,7 +20,8 @@ impl AppEntry {
     /// Launch this application
     pub fn launch(&self) -> Result<(), String> {
         // Parse exec command - remove field codes like %f, %u, %F, %U
-        let exec = self.exec
+        let exec = self
+            .exec
             .replace("%f", "")
             .replace("%F", "")
             .replace("%u", "")
@@ -162,15 +163,21 @@ impl AppIndex {
             .iter()
             .filter_map(|entry| {
                 // Match against name
-                let name_score = self.matcher.fuzzy_match(&entry.name.to_lowercase(), &query_lower);
+                let name_score = self
+                    .matcher
+                    .fuzzy_match(&entry.name.to_lowercase(), &query_lower);
 
                 // Match against keywords
-                let keyword_score = entry.keywords.iter()
+                let keyword_score = entry
+                    .keywords
+                    .iter()
                     .filter_map(|kw| self.matcher.fuzzy_match(&kw.to_lowercase(), &query_lower))
                     .max();
 
                 // Match against description
-                let desc_score = entry.description.as_ref()
+                let desc_score = entry
+                    .description
+                    .as_ref()
                     .and_then(|d| self.matcher.fuzzy_match(&d.to_lowercase(), &query_lower))
                     .map(|s| s / 2); // Weight description matches lower
 

@@ -3,9 +3,9 @@ use gdk::Screen;
 use glib::clone;
 use gtk::prelude::*;
 use gtk::{
-    Adjustment, Application, ApplicationWindow, Box as GtkBox, Button, ColorButton,
-    ComboBoxText, CssProvider, Dialog, DialogFlags, Entry, Grid, Label, ListBox, ListBoxRow,
-    Notebook, Orientation, ResponseType, Scale, ScrolledWindow, SpinButton, StyleContext, Switch,
+    Adjustment, Application, ApplicationWindow, Box as GtkBox, Button, ColorButton, ComboBoxText,
+    CssProvider, Dialog, DialogFlags, Entry, Grid, Label, ListBox, ListBoxRow, Notebook,
+    Orientation, ResponseType, Scale, ScrolledWindow, SpinButton, StyleContext, Switch,
 };
 use pango::EllipsizeMode;
 use std::cell::RefCell;
@@ -233,7 +233,9 @@ pub fn show_settings_window(app: &Application) {
 
     // Load CSS
     let provider = CssProvider::new();
-    provider.load_from_data(SETTINGS_CSS.as_bytes()).expect("Failed to load CSS");
+    provider
+        .load_from_data(SETTINGS_CSS.as_bytes())
+        .expect("Failed to load CSS");
     if let Some(screen) = gdk::Screen::default() {
         StyleContext::add_provider_for_screen(
             &screen,
@@ -268,12 +270,14 @@ pub fn show_settings_window(app: &Application) {
 
     let is_recording = Rc::new(RefCell::new(false));
 
-    record_button.connect_clicked(clone!(@weak shortcut_entry, @strong is_recording => move |btn| {
-        *is_recording.borrow_mut() = true;
-        shortcut_entry.set_text("Press shortcut keys...");
-        shortcut_entry.grab_focus();
-        btn.set_sensitive(false);
-    }));
+    record_button.connect_clicked(
+        clone!(@weak shortcut_entry, @strong is_recording => move |btn| {
+            *is_recording.borrow_mut() = true;
+            shortcut_entry.set_text("Press shortcut keys...");
+            shortcut_entry.grab_focus();
+            btn.set_sensitive(false);
+        }),
+    );
 
     shortcut_entry.connect_key_press_event(clone!(@strong is_recording, @weak record_button => @default-return glib::Propagation::Proceed, move |entry, event| {
         if !*is_recording.borrow() {
@@ -317,7 +321,11 @@ pub fn show_settings_window(app: &Application) {
     let max_results_label = create_label("Max results");
     let max_results_adj = Adjustment::new(
         config.borrow().behavior.max_results as f64,
-        1.0, 20.0, 1.0, 5.0, 0.0
+        1.0,
+        20.0,
+        1.0,
+        5.0,
+        0.0,
     );
     let max_results_spin = SpinButton::new(Some(&max_results_adj), 1.0, 0);
     max_results_spin.set_halign(gtk::Align::Start);
@@ -341,9 +349,16 @@ pub fn show_settings_window(app: &Application) {
 
     let theme_label = create_label("Theme");
     let theme_combo = ComboBoxText::new();
+    // All 9 themes from config::get_theme_colors
     theme_combo.append(Some("catppuccin-mocha"), "Catppuccin Mocha");
+    theme_combo.append(Some("catppuccin-macchiato"), "Catppuccin Macchiato");
+    theme_combo.append(Some("catppuccin-frappe"), "Catppuccin Frappé");
     theme_combo.append(Some("catppuccin-latte"), "Catppuccin Latte");
     theme_combo.append(Some("nord"), "Nord");
+    theme_combo.append(Some("dracula"), "Dracula");
+    theme_combo.append(Some("gruvbox-dark"), "Gruvbox Dark");
+    theme_combo.append(Some("tokyo-night"), "Tokyo Night");
+    theme_combo.append(Some("one-dark"), "One Dark");
     theme_combo.set_active_id(Some(&config.borrow().appearance.theme));
     theme_combo.set_hexpand(true);
 
@@ -360,16 +375,18 @@ pub fn show_settings_window(app: &Application) {
 
     let opacity_label = create_label("Opacity");
     let opacity_box = GtkBox::new(Orientation::Horizontal, 8);
-    let opacity_adj = Adjustment::new(
-        config.borrow().appearance.opacity,
-        0.5, 1.0, 0.01, 0.1, 0.0
-    );
+    let opacity_adj = Adjustment::new(config.borrow().appearance.opacity, 0.5, 1.0, 0.01, 0.1, 0.0);
     let opacity_scale = Scale::new(Orientation::Horizontal, Some(&opacity_adj));
     opacity_scale.set_hexpand(true);
     opacity_scale.set_draw_value(false);
 
-    let opacity_value_label = Label::new(Some(&format!("{}%", (config.borrow().appearance.opacity * 100.0) as i32)));
-    opacity_value_label.style_context().add_class("settings-label");
+    let opacity_value_label = Label::new(Some(&format!(
+        "{}%",
+        (config.borrow().appearance.opacity * 100.0) as i32
+    )));
+    opacity_value_label
+        .style_context()
+        .add_class("settings-label");
 
     opacity_adj.connect_value_changed(clone!(@weak opacity_value_label => move |adj| {
         opacity_value_label.set_text(&format!("{}%", (adj.value() * 100.0) as i32));
@@ -381,6 +398,56 @@ pub fn show_settings_window(app: &Application) {
     appearance_grid.attach(&opacity_label, 0, 2, 1, 1);
     appearance_grid.attach(&opacity_box, 1, 2, 1, 1);
 
+    // Description Size
+    let desc_size_label = create_label("Description Size");
+    let desc_size_adj = Adjustment::new(
+        config.borrow().appearance.description_size as f64,
+        8.0,
+        24.0,
+        1.0,
+        2.0,
+        0.0,
+    );
+    let desc_size_spin = SpinButton::new(Some(&desc_size_adj), 1.0, 0);
+    desc_size_spin.set_halign(gtk::Align::Start);
+
+    appearance_grid.attach(&desc_size_label, 0, 3, 1, 1);
+    appearance_grid.attach(&desc_size_spin, 1, 3, 1, 1);
+
+    // Description Color
+    let desc_color_label = create_label("Description Color");
+    let desc_color_box = GtkBox::new(Orientation::Horizontal, 8);
+
+    let use_custom_desc_color = Switch::new();
+    let has_custom_color = config.borrow().appearance.description_color.is_some();
+    use_custom_desc_color.set_active(has_custom_color);
+
+    let desc_color_str = config
+        .borrow()
+        .appearance
+        .description_color
+        .clone()
+        .unwrap_or_else(|| "#a0a0a0".to_string());
+    let desc_color = parse_color(&desc_color_str);
+    let desc_color_button = ColorButton::with_rgba(&desc_color);
+    desc_color_button.set_use_alpha(false);
+    desc_color_button.set_sensitive(has_custom_color);
+
+    use_custom_desc_color.connect_state_set(clone!(@weak desc_color_button => @default-return glib::Propagation::Proceed, move |_, state| {
+        desc_color_button.set_sensitive(state);
+        glib::Propagation::Proceed
+    }));
+
+    let custom_label = Label::new(Some("Custom"));
+    custom_label.style_context().add_class("settings-label");
+
+    desc_color_box.pack_start(&custom_label, false, false, 0);
+    desc_color_box.pack_start(&use_custom_desc_color, false, false, 0);
+    desc_color_box.pack_start(&desc_color_button, false, false, 0);
+
+    appearance_grid.attach(&desc_color_label, 0, 4, 1, 1);
+    appearance_grid.attach(&desc_color_box, 1, 4, 1, 1);
+
     appearance_section.pack_start(&appearance_grid, false, false, 0);
     appearance_tab.pack_start(&appearance_section, false, false, 0);
 
@@ -391,7 +458,9 @@ pub fn show_settings_window(app: &Application) {
     aliases_tab.style_context().add_class("tab-content");
 
     let aliases_section = create_section("Aliases");
-    let aliases_desc = Label::new(Some("Short keywords to launch apps quickly (e.g., \"ff\" → Firefox)"));
+    let aliases_desc = Label::new(Some(
+        "Short keywords to launch apps quickly (e.g., \"ff\" → Firefox)",
+    ));
     aliases_desc.style_context().add_class("settings-label");
     aliases_desc.set_halign(gtk::Align::Start);
     aliases_desc.set_line_wrap(true);
@@ -401,8 +470,10 @@ pub fn show_settings_window(app: &Application) {
     aliases_list.style_context().add_class("settings-list");
     aliases_list.set_selection_mode(gtk::SelectionMode::None);
 
-    let aliases_data: Rc<RefCell<Vec<AliasConfig>>> = Rc::new(RefCell::new(config.borrow().aliases.clone()));
-    refresh_aliases_list(&aliases_list, &aliases_data.borrow());
+    let aliases_data: Rc<RefCell<Vec<AliasConfig>>> =
+        Rc::new(RefCell::new(config.borrow().aliases.clone()));
+    // Use the version with edit/delete actions
+    refresh_aliases_list_with_actions(&aliases_list, &aliases_data, &window);
 
     let aliases_scroll = ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
     aliases_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
@@ -413,7 +484,9 @@ pub fn show_settings_window(app: &Application) {
     let aliases_buttons = GtkBox::new(Orientation::Horizontal, 8);
     aliases_buttons.set_margin_top(8);
     let add_alias_btn = Button::with_label("+ Add Alias");
-    add_alias_btn.style_context().add_class("settings-button-add");
+    add_alias_btn
+        .style_context()
+        .add_class("settings-button-add");
 
     let aliases_list_for_add = aliases_list.clone();
     let aliases_data_for_add = aliases_data.clone();
@@ -426,7 +499,11 @@ pub fn show_settings_window(app: &Application) {
                 target,
                 icon: None,
             });
-            refresh_aliases_list(&aliases_list_for_add, &aliases_data_for_add.borrow());
+            refresh_aliases_list_with_actions(
+                &aliases_list_for_add,
+                &aliases_data_for_add,
+                &window_for_alias,
+            );
         }
     });
 
@@ -451,8 +528,9 @@ pub fn show_settings_window(app: &Application) {
     quicklinks_list.style_context().add_class("settings-list");
     quicklinks_list.set_selection_mode(gtk::SelectionMode::None);
 
-    let quicklinks_data: Rc<RefCell<Vec<QuicklinkConfig>>> = Rc::new(RefCell::new(config.borrow().quicklinks.clone()));
-    refresh_quicklinks_list(&quicklinks_list, &quicklinks_data.borrow());
+    let quicklinks_data: Rc<RefCell<Vec<QuicklinkConfig>>> =
+        Rc::new(RefCell::new(config.borrow().quicklinks.clone()));
+    refresh_quicklinks_list_with_actions(&quicklinks_list, &quicklinks_data, &window);
 
     let quicklinks_scroll = ScrolledWindow::new(gtk::Adjustment::NONE, gtk::Adjustment::NONE);
     quicklinks_scroll.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
@@ -463,7 +541,9 @@ pub fn show_settings_window(app: &Application) {
     let quicklinks_buttons = GtkBox::new(Orientation::Horizontal, 8);
     quicklinks_buttons.set_margin_top(8);
     let add_quicklink_btn = Button::with_label("+ Add Quicklink");
-    add_quicklink_btn.style_context().add_class("settings-button-add");
+    add_quicklink_btn
+        .style_context()
+        .add_class("settings-button-add");
 
     let quicklinks_list_for_add = quicklinks_list.clone();
     let quicklinks_data_for_add = quicklinks_data.clone();
@@ -476,7 +556,11 @@ pub fn show_settings_window(app: &Application) {
                 url,
                 icon: None,
             });
-            refresh_quicklinks_list(&quicklinks_list_for_add, &quicklinks_data_for_add.borrow());
+            refresh_quicklinks_list_with_actions(
+                &quicklinks_list_for_add,
+                &quicklinks_data_for_add,
+                &window_for_quicklink,
+            );
         }
     });
 
@@ -491,14 +575,18 @@ pub fn show_settings_window(app: &Application) {
     scripts_tab.style_context().add_class("tab-content");
 
     let scripts_section = create_section("Script Commands");
-    let scripts_desc = Label::new(Some("Shell scripts in ~/.config/nova/scripts/ with # nova: headers"));
+    let scripts_desc = Label::new(Some(
+        "Shell scripts in ~/.config/nova/scripts/ with # nova: headers",
+    ));
     scripts_desc.style_context().add_class("settings-label");
     scripts_desc.set_halign(gtk::Align::Start);
     scripts_desc.set_line_wrap(true);
     scripts_section.pack_start(&scripts_desc, false, false, 0);
 
     let scripts_info = Label::new(Some("Scripts are automatically detected from your scripts folder.\nAdd metadata headers to customize how they appear:"));
-    scripts_info.style_context().add_class("settings-list-item-subtitle");
+    scripts_info
+        .style_context()
+        .add_class("settings-list-item-subtitle");
     scripts_info.set_halign(gtk::Align::Start);
     scripts_info.set_line_wrap(true);
     scripts_section.pack_start(&scripts_info, false, false, 0);
@@ -511,7 +599,9 @@ pub fn show_settings_window(app: &Application) {
     scripts_section.pack_start(&example_label, false, false, 0);
 
     let open_scripts_btn = Button::with_label("Open Scripts Folder");
-    open_scripts_btn.style_context().add_class("settings-button");
+    open_scripts_btn
+        .style_context()
+        .add_class("settings-button");
     open_scripts_btn.set_halign(gtk::Align::Start);
     open_scripts_btn.set_margin_top(12);
     open_scripts_btn.connect_clicked(|_| {
@@ -537,7 +627,9 @@ pub fn show_settings_window(app: &Application) {
     cancel_button.style_context().add_class("settings-button");
 
     let save_button = Button::with_label("Save");
-    save_button.style_context().add_class("settings-button-primary");
+    save_button
+        .style_context()
+        .add_class("settings-button-primary");
 
     footer.pack_start(&cancel_button, false, false, 0);
     footer.pack_start(&save_button, false, false, 0);
@@ -560,6 +652,9 @@ pub fn show_settings_window(app: &Application) {
         @weak opacity_adj,
         @weak autostart_switch,
         @weak max_results_adj,
+        @weak desc_size_adj,
+        @weak use_custom_desc_color,
+        @weak desc_color_button,
         @strong config
         => move |_| {
             let mut cfg = config.borrow_mut();
@@ -580,6 +675,21 @@ pub fn show_settings_window(app: &Application) {
             );
 
             cfg.appearance.opacity = opacity_adj.value();
+            cfg.appearance.description_size = desc_size_adj.value() as u32;
+
+            // Description color - only set if custom switch is on
+            if use_custom_desc_color.is_active() {
+                let desc_rgba = desc_color_button.rgba();
+                cfg.appearance.description_color = Some(format!(
+                    "#{:02x}{:02x}{:02x}",
+                    (desc_rgba.red() * 255.0) as u8,
+                    (desc_rgba.green() * 255.0) as u8,
+                    (desc_rgba.blue() * 255.0) as u8
+                ));
+            } else {
+                cfg.appearance.description_color = None;
+            }
+
             cfg.behavior.autostart = autostart_switch.is_active();
             cfg.behavior.max_results = max_results_adj.value() as u32;
 
@@ -708,7 +818,11 @@ fn update_gnome_shortcut(shortcut: &str) -> Result<(), String> {
 
     // Get current keybindings list
     let output = Command::new("gsettings")
-        .args(["get", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings"])
+        .args([
+            "get",
+            "org.gnome.settings-daemon.plugins.media-keys",
+            "custom-keybindings",
+        ])
         .output()
         .map_err(|e| format!("Failed to get keybindings: {}", e))?;
 
@@ -725,7 +839,12 @@ fn update_gnome_shortcut(shortcut: &str) -> Result<(), String> {
         };
 
         Command::new("gsettings")
-            .args(["set", "org.gnome.settings-daemon.plugins.media-keys", "custom-keybindings", &new_list])
+            .args([
+                "set",
+                "org.gnome.settings-daemon.plugins.media-keys",
+                "custom-keybindings",
+                &new_list,
+            ])
             .status()
             .map_err(|e| format!("Failed to update keybindings list: {}", e))?;
     }
@@ -750,12 +869,18 @@ fn update_gnome_shortcut(shortcut: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn refresh_aliases_list(list: &ListBox, aliases: &[AliasConfig]) {
+/// Refresh the aliases list with edit/delete functionality
+fn refresh_aliases_list_with_actions(
+    list: &ListBox,
+    aliases_data: &Rc<RefCell<Vec<AliasConfig>>>,
+    parent_window: &ApplicationWindow,
+) {
     // Clear existing rows
     for child in list.children() {
         list.remove(&child);
     }
 
+    let aliases = aliases_data.borrow();
     if aliases.is_empty() {
         let empty_label = Label::new(Some("No aliases configured"));
         empty_label.style_context().add_class("settings-list-empty");
@@ -764,7 +889,7 @@ fn refresh_aliases_list(list: &ListBox, aliases: &[AliasConfig]) {
         row.set_selectable(false);
         list.add(&row);
     } else {
-        for alias in aliases {
+        for (index, alias) in aliases.iter().enumerate() {
             let row = ListBoxRow::new();
             let hbox = GtkBox::new(Orientation::Horizontal, 8);
 
@@ -776,13 +901,62 @@ fn refresh_aliases_list(list: &ListBox, aliases: &[AliasConfig]) {
             title.set_halign(gtk::Align::Start);
 
             let subtitle = Label::new(Some(&alias.target));
-            subtitle.style_context().add_class("settings-list-item-subtitle");
+            subtitle
+                .style_context()
+                .add_class("settings-list-item-subtitle");
             subtitle.set_halign(gtk::Align::Start);
 
             info_box.pack_start(&title, false, false, 0);
             info_box.pack_start(&subtitle, false, false, 0);
 
+            // Action buttons
+            let buttons_box = GtkBox::new(Orientation::Horizontal, 4);
+            buttons_box.set_valign(gtk::Align::Center);
+
+            let edit_btn = Button::with_label("Edit");
+            edit_btn.style_context().add_class("settings-button-small");
+            let delete_btn = Button::with_label("Delete");
+            delete_btn
+                .style_context()
+                .add_class("settings-button-small");
+            delete_btn.style_context().add_class("destructive-action");
+
+            // Clone data for edit callback
+            let aliases_data_edit = aliases_data.clone();
+            let list_edit = list.clone();
+            let window_edit = parent_window.clone();
+            let alias_clone = alias.clone();
+            edit_btn.connect_clicked(move |_| {
+                if let Some((keyword, name, target)) =
+                    show_alias_dialog(&window_edit, Some(&alias_clone))
+                {
+                    if let Some(a) = aliases_data_edit.borrow_mut().get_mut(index) {
+                        a.keyword = keyword;
+                        a.name = name;
+                        a.target = target;
+                    }
+                    refresh_aliases_list_with_actions(&list_edit, &aliases_data_edit, &window_edit);
+                }
+            });
+
+            // Clone data for delete callback
+            let aliases_data_delete = aliases_data.clone();
+            let list_delete = list.clone();
+            let window_delete = parent_window.clone();
+            delete_btn.connect_clicked(move |_| {
+                aliases_data_delete.borrow_mut().remove(index);
+                refresh_aliases_list_with_actions(
+                    &list_delete,
+                    &aliases_data_delete,
+                    &window_delete,
+                );
+            });
+
+            buttons_box.pack_start(&edit_btn, false, false, 0);
+            buttons_box.pack_start(&delete_btn, false, false, 0);
+
             hbox.pack_start(&info_box, true, true, 0);
+            hbox.pack_start(&buttons_box, false, false, 0);
 
             row.add(&hbox);
             row.set_selectable(false);
@@ -793,12 +967,18 @@ fn refresh_aliases_list(list: &ListBox, aliases: &[AliasConfig]) {
     list.show_all();
 }
 
-fn refresh_quicklinks_list(list: &ListBox, quicklinks: &[QuicklinkConfig]) {
+/// Refresh the quicklinks list with edit/delete functionality
+fn refresh_quicklinks_list_with_actions(
+    list: &ListBox,
+    quicklinks_data: &Rc<RefCell<Vec<QuicklinkConfig>>>,
+    parent_window: &ApplicationWindow,
+) {
     // Clear existing rows
     for child in list.children() {
         list.remove(&child);
     }
 
+    let quicklinks = quicklinks_data.borrow();
     if quicklinks.is_empty() {
         let empty_label = Label::new(Some("No quicklinks configured"));
         empty_label.style_context().add_class("settings-list-empty");
@@ -807,20 +987,29 @@ fn refresh_quicklinks_list(list: &ListBox, quicklinks: &[QuicklinkConfig]) {
         row.set_selectable(false);
         list.add(&row);
     } else {
-        for quicklink in quicklinks {
+        for (index, quicklink) in quicklinks.iter().enumerate() {
             let row = ListBoxRow::new();
             let hbox = GtkBox::new(Orientation::Horizontal, 8);
 
             let info_box = GtkBox::new(Orientation::Vertical, 2);
             info_box.set_hexpand(true);
 
-            let has_query = if quicklink.url.contains("{query}") { " (search)" } else { "" };
-            let title = Label::new(Some(&format!("{} → {}{}", quicklink.keyword, quicklink.name, has_query)));
+            let has_query = if quicklink.url.contains("{query}") {
+                " (search)"
+            } else {
+                ""
+            };
+            let title = Label::new(Some(&format!(
+                "{} → {}{}",
+                quicklink.keyword, quicklink.name, has_query
+            )));
             title.style_context().add_class("settings-list-item-title");
             title.set_halign(gtk::Align::Start);
 
             let subtitle = Label::new(Some(&quicklink.url));
-            subtitle.style_context().add_class("settings-list-item-subtitle");
+            subtitle
+                .style_context()
+                .add_class("settings-list-item-subtitle");
             subtitle.set_halign(gtk::Align::Start);
             subtitle.set_ellipsize(EllipsizeMode::End);
             subtitle.set_max_width_chars(50);
@@ -828,7 +1017,58 @@ fn refresh_quicklinks_list(list: &ListBox, quicklinks: &[QuicklinkConfig]) {
             info_box.pack_start(&title, false, false, 0);
             info_box.pack_start(&subtitle, false, false, 0);
 
+            // Action buttons
+            let buttons_box = GtkBox::new(Orientation::Horizontal, 4);
+            buttons_box.set_valign(gtk::Align::Center);
+
+            let edit_btn = Button::with_label("Edit");
+            edit_btn.style_context().add_class("settings-button-small");
+            let delete_btn = Button::with_label("Delete");
+            delete_btn
+                .style_context()
+                .add_class("settings-button-small");
+            delete_btn.style_context().add_class("destructive-action");
+
+            // Clone data for edit callback
+            let quicklinks_data_edit = quicklinks_data.clone();
+            let list_edit = list.clone();
+            let window_edit = parent_window.clone();
+            let quicklink_clone = quicklink.clone();
+            edit_btn.connect_clicked(move |_| {
+                if let Some((keyword, name, url)) =
+                    show_quicklink_dialog(&window_edit, Some(&quicklink_clone))
+                {
+                    if let Some(q) = quicklinks_data_edit.borrow_mut().get_mut(index) {
+                        q.keyword = keyword;
+                        q.name = name;
+                        q.url = url;
+                    }
+                    refresh_quicklinks_list_with_actions(
+                        &list_edit,
+                        &quicklinks_data_edit,
+                        &window_edit,
+                    );
+                }
+            });
+
+            // Clone data for delete callback
+            let quicklinks_data_delete = quicklinks_data.clone();
+            let list_delete = list.clone();
+            let window_delete = parent_window.clone();
+            delete_btn.connect_clicked(move |_| {
+                quicklinks_data_delete.borrow_mut().remove(index);
+                refresh_quicklinks_list_with_actions(
+                    &list_delete,
+                    &quicklinks_data_delete,
+                    &window_delete,
+                );
+            });
+
+            buttons_box.pack_start(&edit_btn, false, false, 0);
+            buttons_box.pack_start(&delete_btn, false, false, 0);
+
             hbox.pack_start(&info_box, true, true, 0);
+            hbox.pack_start(&buttons_box, false, false, 0);
 
             row.add(&hbox);
             row.set_selectable(false);
@@ -839,12 +1079,22 @@ fn refresh_quicklinks_list(list: &ListBox, quicklinks: &[QuicklinkConfig]) {
     list.show_all();
 }
 
-fn show_alias_dialog(parent: &ApplicationWindow, existing: Option<&AliasConfig>) -> Option<(String, String, String)> {
+fn show_alias_dialog(
+    parent: &ApplicationWindow,
+    existing: Option<&AliasConfig>,
+) -> Option<(String, String, String)> {
     let dialog = Dialog::with_buttons(
-        Some(if existing.is_some() { "Edit Alias" } else { "Add Alias" }),
+        Some(if existing.is_some() {
+            "Edit Alias"
+        } else {
+            "Add Alias"
+        }),
         Some(parent),
         DialogFlags::MODAL | DialogFlags::DESTROY_WITH_PARENT,
-        &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+        &[
+            ("Cancel", ResponseType::Cancel),
+            ("Save", ResponseType::Accept),
+        ],
     );
     dialog.set_default_size(400, -1);
 
@@ -908,16 +1158,28 @@ fn show_alias_dialog(parent: &ApplicationWindow, existing: Option<&AliasConfig>)
         None
     };
 
-    unsafe { dialog.destroy(); }
+    unsafe {
+        dialog.destroy();
+    }
     result
 }
 
-fn show_quicklink_dialog(parent: &ApplicationWindow, existing: Option<&QuicklinkConfig>) -> Option<(String, String, String)> {
+fn show_quicklink_dialog(
+    parent: &ApplicationWindow,
+    existing: Option<&QuicklinkConfig>,
+) -> Option<(String, String, String)> {
     let dialog = Dialog::with_buttons(
-        Some(if existing.is_some() { "Edit Quicklink" } else { "Add Quicklink" }),
+        Some(if existing.is_some() {
+            "Edit Quicklink"
+        } else {
+            "Add Quicklink"
+        }),
         Some(parent),
         DialogFlags::MODAL | DialogFlags::DESTROY_WITH_PARENT,
-        &[("Cancel", ResponseType::Cancel), ("Save", ResponseType::Accept)],
+        &[
+            ("Cancel", ResponseType::Cancel),
+            ("Save", ResponseType::Accept),
+        ],
     );
     dialog.set_default_size(450, -1);
 
@@ -952,7 +1214,9 @@ fn show_quicklink_dialog(parent: &ApplicationWindow, existing: Option<&Quicklink
     content_area.pack_start(&name_entry, false, false, 0);
 
     // URL
-    let url_label = Label::new(Some("URL (use {query} for search, e.g., \"https://github.com/search?q={query}\")"));
+    let url_label = Label::new(Some(
+        "URL (use {query} for search, e.g., \"https://github.com/search?q={query}\")",
+    ));
     url_label.style_context().add_class("dialog-label");
     url_label.set_halign(gtk::Align::Start);
     content_area.pack_start(&url_label, false, false, 0);
@@ -981,6 +1245,8 @@ fn show_quicklink_dialog(parent: &ApplicationWindow, existing: Option<&Quicklink
         None
     };
 
-    unsafe { dialog.destroy(); }
+    unsafe {
+        dialog.destroy();
+    }
     result
 }
