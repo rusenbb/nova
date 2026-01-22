@@ -7,7 +7,7 @@
 mod linux;
 
 #[cfg(target_os = "macos")]
-mod macos;
+pub mod macos;
 
 #[cfg(target_os = "windows")]
 mod windows;
@@ -15,7 +15,7 @@ mod windows;
 use std::path::PathBuf;
 
 /// Represents an installed application discovered on the system.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AppEntry {
     /// Unique identifier (e.g., filename without extension on Linux)
     pub id: String,
@@ -32,7 +32,7 @@ pub struct AppEntry {
 }
 
 /// System commands that can be executed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum SystemCommand {
     /// Lock the screen/session
     Lock,

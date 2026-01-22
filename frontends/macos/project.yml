@@ -1,0 +1,53 @@
+# XcodeGen project specification for Nova macOS frontend
+# Generate with: xcodegen generate
+
+name: Nova
+options:
+  bundleIdPrefix: com.nova
+  deploymentTarget:
+    macOS: "13.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  SWIFT_VERSION: "5.9"
+  MACOSX_DEPLOYMENT_TARGET: "13.0"
+  SWIFT_OBJC_BRIDGING_HEADER: "Nova/Supporting/Nova-Bridging-Header.h"
+
+targets:
+  Nova:
+    type: application
+    platform: macOS
+    sources:
+      - Nova
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.nova.launcher
+      INFOPLIST_FILE: Nova/Supporting/Info.plist
+      CODE_SIGN_STYLE: Automatic
+      LIBRARY_SEARCH_PATHS:
+        - "$(PROJECT_DIR)/../../target/release"
+        - "$(PROJECT_DIR)/../../target/debug"
+      OTHER_LDFLAGS:
+        - "-lnova"
+      HEADER_SEARCH_PATHS:
+        - "$(PROJECT_DIR)/Nova/Supporting"
+      LD_RUNPATH_SEARCH_PATHS:
+        - "@executable_path/../Frameworks"
+        - "@loader_path/../Frameworks"
+      ENABLE_HARDENED_RUNTIME: YES
+    entitlements:
+      path: Nova/Supporting/Nova.entitlements
+    info:
+      path: Nova/Supporting/Info.plist
+      properties:
+        CFBundleName: Nova
+        CFBundleDisplayName: Nova
+        CFBundleIdentifier: com.nova.launcher
+        CFBundleVersion: "1.0"
+        CFBundleShortVersionString: "1.0"
+        CFBundlePackageType: APPL
+        CFBundleExecutable: Nova
+        LSMinimumSystemVersion: "13.0"
+        LSUIElement: true
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true

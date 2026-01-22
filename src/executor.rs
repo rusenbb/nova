@@ -57,6 +57,8 @@ pub enum ExecutionAction {
 }
 
 /// Result of executing an action.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "result", content = "message")]
 pub enum ExecutionResult {
     /// Action completed successfully, hide the window
     Success,

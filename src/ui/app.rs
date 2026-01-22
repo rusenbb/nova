@@ -245,6 +245,14 @@ impl NovaApp {
 
             Message::WindowOpened(id) => {
                 self.window_id = Some(id);
+
+                // On macOS, configure window to appear over fullscreen apps
+                #[cfg(target_os = "macos")]
+                {
+                    return crate::platform::macos::configure_window_task(id, Message::NoOp);
+                }
+
+                #[cfg(not(target_os = "macos"))]
                 Task::none()
             }
 
@@ -657,11 +665,24 @@ impl NovaApp {
         self.command_mode = None;
         self.update_search();
 
+        // On macOS, activate the app to bring it to front
+        #[cfg(target_os = "macos")]
+        {
+            crate::platform::macos::activate_app();
+        }
+
         // Show and focus the window
         let show_task = if let Some(id) = self.window_id {
+            // Also re-configure window in case settings were reset
+            #[cfg(target_os = "macos")]
+            let configure_task = crate::platform::macos::configure_window_task(id, Message::NoOp);
+            #[cfg(not(target_os = "macos"))]
+            let configure_task = Task::none();
+
             Task::batch([
                 window::gain_focus(id),
                 window::change_mode(id, window::Mode::Windowed),
+                configure_task,
             ])
         } else {
             window::get_latest().and_then(|id| {

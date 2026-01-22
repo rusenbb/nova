@@ -5,6 +5,10 @@ description = "Keyboard-driven productivity launcher"
 authors = ["rusen"]
 edition = "2021"
 
+[lib]
+name = "nova"
+crate-type = ["lib", "cdylib", "staticlib"]
+
 [[bin]]
 name = "nova"
 path = "src/main.rs"
@@ -56,6 +60,12 @@ urlencoding = "2"
 
 # Calculator
 meval = "0.2"
+
+# macOS window management (modern objc2 crates)
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.5"
+objc2-app-kit = { version = "0.2", features = ["NSWindow", "NSView", "NSApplication", "NSResponder"] }
+objc2-foundation = "0.2"
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

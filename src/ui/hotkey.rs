@@ -130,10 +130,20 @@ fn run_hotkey_manager(config: &HotkeyConfig, tx: Sender<HotkeyMessage>) -> Resul
     );
 
     // Process hotkey events
+    println!("[Nova Hotkey] Listening for events...");
     loop {
-        if let Ok(event) = GlobalHotKeyEvent::receiver().recv() {
-            if event.state == HotKeyState::Pressed {
-                let _ = tx.send(HotkeyMessage::TogglePressed);
+        match GlobalHotKeyEvent::receiver().recv() {
+            Ok(event) => {
+                println!("[Nova Hotkey] Event received: {:?}", event.state);
+                if event.state == HotKeyState::Pressed {
+                    println!("[Nova Hotkey] Sending toggle message");
+                    if let Err(e) = tx.send(HotkeyMessage::TogglePressed) {
+                        eprintln!("[Nova Hotkey] Failed to send: {}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("[Nova Hotkey] Recv error: {:?}", e);
             }
         }
     }

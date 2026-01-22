@@ -15,7 +15,8 @@ use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 
 /// Search results that appear in the launcher.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "type", content = "data")]
 pub enum SearchResult {
     /// An installed application
     App(AppEntry),
