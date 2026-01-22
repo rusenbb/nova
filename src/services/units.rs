@@ -106,9 +106,8 @@ fn parse_value_unit(s: &str) -> Option<(f64, &str)> {
         } else if (c == '-' || c == '+') && !has_sign && !has_digit {
             has_sign = true;
             num_end = i + 1;
-        } else if c.is_whitespace() && has_digit {
-            break;
         } else if has_digit {
+            // Stop parsing number when we hit whitespace or any other non-digit character
             break;
         }
     }

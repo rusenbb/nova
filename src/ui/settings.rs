@@ -116,6 +116,7 @@ pub enum SettingsMessage {
 
 /// Result from the settings window.
 #[derive(Debug, Clone)]
+#[allow(clippy::large_enum_variant)]
 pub enum SettingsResult {
     /// Settings were saved, returns updated config.
     Saved(Config),
@@ -400,14 +401,25 @@ impl SettingsWindow {
         let max_results_value = text(format!("{}", self.max_results))
             .size(14)
             .color(self.theme.text);
-        let max_results_row = row![max_results_label, Space::with_width(20), max_results_slider, Space::with_width(10), max_results_value]
-            .align_y(Alignment::Center);
+        let max_results_row = row![
+            max_results_label,
+            Space::with_width(20),
+            max_results_slider,
+            Space::with_width(10),
+            max_results_value
+        ]
+        .align_y(Alignment::Center);
 
-        let autostart_label = text("Auto-start on login").size(14).color(self.theme.subtext);
-        let autostart_toggle = toggler(self.autostart)
-            .on_toggle(SettingsMessage::AutostartToggled);
-        let autostart_row = row![autostart_label, Space::with_width(Length::Fill), autostart_toggle]
-            .align_y(Alignment::Center);
+        let autostart_label = text("Auto-start on login")
+            .size(14)
+            .color(self.theme.subtext);
+        let autostart_toggle = toggler(self.autostart).on_toggle(SettingsMessage::AutostartToggled);
+        let autostart_row = row![
+            autostart_label,
+            Space::with_width(Length::Fill),
+            autostart_toggle
+        ]
+        .align_y(Alignment::Center);
 
         column![
             title,
@@ -432,8 +444,8 @@ impl SettingsWindow {
             SettingsMessage::ThemeSelected,
         )
         .width(200);
-        let theme_row = row![theme_label, Space::with_width(20), theme_picker]
-            .align_y(Alignment::Center);
+        let theme_row =
+            row![theme_label, Space::with_width(20), theme_picker].align_y(Alignment::Center);
 
         // Opacity slider
         let opacity_label = text("Opacity").size(14).color(self.theme.subtext);
@@ -445,8 +457,14 @@ impl SettingsWindow {
         let opacity_value = text(format!("{}%", (self.opacity * 100.0) as i32))
             .size(14)
             .color(self.theme.text);
-        let opacity_row = row![opacity_label, Space::with_width(20), opacity_slider, Space::with_width(10), opacity_value]
-            .align_y(Alignment::Center);
+        let opacity_row = row![
+            opacity_label,
+            Space::with_width(20),
+            opacity_slider,
+            Space::with_width(10),
+            opacity_value
+        ]
+        .align_y(Alignment::Center);
 
         // Theme preview
         let preview_label = text("Preview").size(14).color(self.theme.subtext);
@@ -516,7 +534,11 @@ impl SettingsWindow {
         .into()
     }
 
-    fn build_alias_row(&self, index: usize, alias: &AliasConfig) -> Element<'static, SettingsMessage> {
+    fn build_alias_row(
+        &self,
+        index: usize,
+        alias: &AliasConfig,
+    ) -> Element<'static, SettingsMessage> {
         let title_text = format!("{} -> {}", alias.keyword, alias.name);
         let target_text = alias.target.clone();
         let theme = self.theme.clone();
@@ -541,12 +563,10 @@ impl SettingsWindow {
 
         let buttons = row![edit_btn, delete_btn].spacing(8);
 
-        container(
-            row![info, Space::with_width(Length::Fill), buttons].align_y(Alignment::Center),
-        )
-        .padding(12)
-        .style(move |_| style::list_item(&theme))
-        .into()
+        container(row![info, Space::with_width(Length::Fill), buttons].align_y(Alignment::Center))
+            .padding(12)
+            .style(move |_| style::list_item(&theme))
+            .into()
     }
 
     fn build_alias_form(&self) -> Element<'_, SettingsMessage> {
@@ -648,10 +668,7 @@ impl SettingsWindow {
             ""
         };
 
-        let title_text = format!(
-            "{} -> {}{}",
-            quicklink.keyword, quicklink.name, has_query
-        );
+        let title_text = format!("{} -> {}{}", quicklink.keyword, quicklink.name, has_query);
         let url_text = quicklink.url.clone();
         let theme = self.theme.clone();
 
@@ -675,12 +692,10 @@ impl SettingsWindow {
 
         let buttons = row![edit_btn, delete_btn].spacing(8);
 
-        container(
-            row![info, Space::with_width(Length::Fill), buttons].align_y(Alignment::Center),
-        )
-        .padding(12)
-        .style(move |_| style::list_item(&theme))
-        .into()
+        container(row![info, Space::with_width(Length::Fill), buttons].align_y(Alignment::Center))
+            .padding(12)
+            .style(move |_| style::list_item(&theme))
+            .into()
     }
 
     fn build_quicklink_form(&self) -> Element<'_, SettingsMessage> {
@@ -746,12 +761,10 @@ impl SettingsWindow {
 
         let buttons = row![cancel_btn, save_btn].spacing(12);
 
-        container(
-            row![Space::with_width(Length::Fill), buttons].padding([12, 20]),
-        )
-        .width(Length::Fill)
-        .style(|_| style::footer_container(&self.theme))
-        .into()
+        container(row![Space::with_width(Length::Fill), buttons].padding([12, 20]))
+            .width(Length::Fill)
+            .style(|_| style::footer_container(&self.theme))
+            .into()
     }
 
     fn clear_alias_form(&mut self) {

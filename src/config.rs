@@ -82,6 +82,7 @@ pub struct BehaviorConfig {
     pub max_results: u32,
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for Config {
     fn default() -> Self {
         Self {

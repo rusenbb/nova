@@ -136,10 +136,7 @@ pub fn settings_container(theme: &NovaTheme) -> container::Style {
 /// Style for the settings sidebar.
 pub fn sidebar_container(theme: &NovaTheme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(NovaTheme::with_alpha(
-            theme.surface,
-            0.5,
-        ))),
+        background: Some(Background::Color(NovaTheme::with_alpha(theme.surface, 0.5))),
         border: Border {
             color: theme.border,
             width: 0.0,
@@ -182,10 +179,7 @@ pub fn sidebar_button(
 /// Style for the footer container.
 pub fn footer_container(theme: &NovaTheme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(NovaTheme::with_alpha(
-            theme.surface,
-            0.5,
-        ))),
+        background: Some(Background::Color(NovaTheme::with_alpha(theme.surface, 0.5))),
         border: Border {
             color: theme.border,
             width: 1.0,
@@ -264,10 +258,7 @@ pub fn danger_button(_theme: &NovaTheme, status: button::Status) -> button::Styl
 /// Style for list items.
 pub fn list_item(theme: &NovaTheme) -> container::Style {
     container::Style {
-        background: Some(Background::Color(NovaTheme::with_alpha(
-            Color::WHITE,
-            0.03,
-        ))),
+        background: Some(Background::Color(NovaTheme::with_alpha(Color::WHITE, 0.03))),
         border: Border {
             color: theme.border,
             width: 1.0,

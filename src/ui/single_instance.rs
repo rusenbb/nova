@@ -4,9 +4,7 @@
 //! local sockets. When a second instance starts, it sends a message to
 //! the first instance to show itself, then exits.
 
-use interprocess::local_socket::{
-    traits::ListenerExt, GenericFilePath, ListenerOptions, ToFsName,
-};
+use interprocess::local_socket::{traits::ListenerExt, GenericFilePath, ListenerOptions, ToFsName};
 use std::io::{BufRead, BufReader, Write};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
@@ -63,10 +61,7 @@ fn get_socket_path() -> String {
     {
         // Use runtime directory on Unix
         if let Some(runtime_dir) = dirs::runtime_dir() {
-            runtime_dir
-                .join(SOCKET_NAME)
-                .to_string_lossy()
-                .into_owned()
+            runtime_dir.join(SOCKET_NAME).to_string_lossy().into_owned()
         } else if let Some(cache_dir) = dirs::cache_dir() {
             cache_dir.join(SOCKET_NAME).to_string_lossy().into_owned()
         } else {
@@ -112,10 +107,7 @@ fn start_listener() -> Option<Receiver<InstanceMessage>> {
     }
 
     let name = socket_path.clone().to_fs_name::<GenericFilePath>().ok()?;
-    let listener = ListenerOptions::new()
-        .name(name)
-        .create_sync()
-        .ok()?;
+    let listener = ListenerOptions::new().name(name).create_sync().ok()?;
 
     let (tx, rx) = mpsc::channel();
 
@@ -124,15 +116,15 @@ fn start_listener() -> Option<Receiver<InstanceMessage>> {
         listener_loop(listener, tx);
     });
 
-    println!("[Nova] Single instance listener started at: {}", socket_path);
+    println!(
+        "[Nova] Single instance listener started at: {}",
+        socket_path
+    );
     Some(rx)
 }
 
 /// The main listener loop (runs in background thread).
-fn listener_loop(
-    listener: interprocess::local_socket::Listener,
-    tx: Sender<InstanceMessage>,
-) {
+fn listener_loop(listener: interprocess::local_socket::Listener, tx: Sender<InstanceMessage>) {
     for conn in listener.incoming().filter_map(|c| c.ok()) {
         let tx = tx.clone();
         thread::spawn(move || {

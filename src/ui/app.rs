@@ -328,11 +328,8 @@ impl NovaApp {
         // Hotkey subscription
         let hotkey_sub = if let Some(rx) = &self.hotkey_rx {
             let rx = rx.clone();
-            Subscription::run_with_id(
-                "nova-hotkey",
-                hotkey::hotkey_stream_arc(rx),
-            )
-            .map(Message::Hotkey)
+            Subscription::run_with_id("nova-hotkey", hotkey::hotkey_stream_arc(rx))
+                .map(Message::Hotkey)
         } else {
             Subscription::none()
         };
@@ -340,11 +337,7 @@ impl NovaApp {
         // IPC subscription
         let ipc_sub = if let Some(rx) = &self.ipc_rx {
             let rx = rx.clone();
-            Subscription::run_with_id(
-                "nova-ipc",
-                ipc_stream_arc(rx),
-            )
-            .map(Message::Ipc)
+            Subscription::run_with_id("nova-ipc", ipc_stream_arc(rx)).map(Message::Ipc)
         } else {
             Subscription::none()
         };

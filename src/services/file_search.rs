@@ -123,15 +123,15 @@ fn parse_query(query: &str) -> (Option<PathBuf>, String) {
     }
 
     // Expand ~ to home directory
-    let expanded = if query.starts_with('~') {
+    let expanded = if let Some(rest) = query.strip_prefix('~') {
         if let Some(home) = dirs::home_dir() {
-            if query == "~" {
+            if rest.is_empty() {
                 home.to_string_lossy().to_string()
-            } else if query.starts_with("~/") {
-                format!("{}{}", home.display(), &query[1..])
+            } else if let Some(path_rest) = rest.strip_prefix('/') {
+                format!("{}/{}", home.display(), path_rest)
             } else {
                 // ~something without / - treat ~ as home, rest as search
-                return (Some(home), query[1..].to_string());
+                return (Some(home), rest.to_string());
             }
         } else {
             return (None, String::new());

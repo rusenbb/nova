@@ -124,7 +124,10 @@ fn run_hotkey_manager(config: &HotkeyConfig, tx: Sender<HotkeyMessage>) -> Resul
         .register(hotkey)
         .map_err(|e| format!("Failed to register hotkey: {}", e))?;
 
-    println!("[Nova Hotkey] Registered global hotkey: {:?}+{:?}", config.modifier, config.key);
+    println!(
+        "[Nova Hotkey] Registered global hotkey: {:?}+{:?}",
+        config.modifier, config.key
+    );
 
     // Process hotkey events
     loop {

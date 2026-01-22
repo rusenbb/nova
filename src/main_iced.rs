@@ -14,7 +14,7 @@ fn main() -> iced::Result {
     match acquire_or_signal() {
         InstanceResult::Secondary => {
             println!("[Nova] Another instance is already running. Signaled it to show.");
-            return Ok(());
+            Ok(())
         }
         InstanceResult::Primary(ipc_rx) => {
             println!("[Nova] Primary instance starting...");
@@ -24,9 +24,7 @@ fn main() -> iced::Result {
     }
 }
 
-fn run_app(
-    ipc_rx: std::sync::mpsc::Receiver<nova::ui::InstanceMessage>,
-) -> iced::Result {
+fn run_app(ipc_rx: std::sync::mpsc::Receiver<nova::ui::InstanceMessage>) -> iced::Result {
     // Initialize global hotkey (Alt+Space by default)
     let hotkey_config = HotkeyConfig::default();
     let hotkey_rx = nova::ui::hotkey::init_hotkey_manager(&hotkey_config);

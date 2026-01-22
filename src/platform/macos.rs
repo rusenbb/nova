@@ -66,10 +66,17 @@ impl MacOSPlatform {
         let plist: serde_json::Value = serde_json::from_str(&json_str).ok()?;
 
         // Extract metadata from plist
+        // Note: Some apps have empty CFBundleDisplayName, so we filter those out
         let name = plist
             .get("CFBundleDisplayName")
-            .or_else(|| plist.get("CFBundleName"))
             .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                plist
+                    .get("CFBundleName")
+                    .and_then(|v| v.as_str())
+                    .filter(|s| !s.is_empty())
+            })
             .map(|s| s.to_string())
             .unwrap_or_else(|| bundle_name.clone());
 
@@ -80,10 +87,7 @@ impl MacOSPlatform {
             .unwrap_or_else(|| bundle_name.to_lowercase().replace(' ', "."));
 
         // Build keywords from various plist fields
-        let mut keywords: Vec<String> = vec![
-            name.to_lowercase(),
-            bundle_name.to_lowercase(),
-        ];
+        let mut keywords: Vec<String> = vec![name.to_lowercase(), bundle_name.to_lowercase()];
 
         // Add bundle ID parts as keywords
         for part in bundle_id.split('.') {
@@ -116,7 +120,8 @@ impl MacOSPlatform {
                 .output()
             {
                 if let Ok(plist) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
-                    if let Some(icon_name) = plist.get("CFBundleIconFile").and_then(|v| v.as_str()) {
+                    if let Some(icon_name) = plist.get("CFBundleIconFile").and_then(|v| v.as_str())
+                    {
                         let icon_name = if icon_name.ends_with(".icns") {
                             icon_name.to_string()
                         } else {
@@ -146,7 +151,12 @@ impl MacOSPlatform {
     }
 
     /// Scan a directory for .app bundles.
-    fn scan_applications_dir(&self, dir: &Path, apps: &mut Vec<AppEntry>, seen: &mut HashSet<String>) {
+    fn scan_applications_dir(
+        &self,
+        dir: &Path,
+        apps: &mut Vec<AppEntry>,
+        seen: &mut HashSet<String>,
+    ) {
         let Ok(entries) = fs::read_dir(dir) else {
             return;
         };
@@ -282,7 +292,8 @@ impl Platform for MacOSPlatform {
                 .map_err(|e| format!("Failed to spawn pbcopy: {}", e))?;
 
             if let Some(stdin) = child.stdin.as_mut() {
-                stdin.write_all(content.as_bytes())
+                stdin
+                    .write_all(content.as_bytes())
                     .map_err(|e| format!("Failed to write to pbcopy: {}", e))?;
             }
 
@@ -353,10 +364,7 @@ impl Platform for MacOSPlatform {
             SystemCommand::Logout => {
                 // Use osascript to log out
                 Command::new("osascript")
-                    .args([
-                        "-e",
-                        r#"tell application "System Events" to log out"#,
-                    ])
+                    .args(["-e", r#"tell application "System Events" to log out"#])
                     .status()
                     .map_err(|e| format!("Failed to logout: {}", e))?;
                 Ok(())
@@ -365,10 +373,7 @@ impl Platform for MacOSPlatform {
             SystemCommand::Restart => {
                 // Use osascript to restart
                 Command::new("osascript")
-                    .args([
-                        "-e",
-                        r#"tell application "System Events" to restart"#,
-                    ])
+                    .args(["-e", r#"tell application "System Events" to restart"#])
                     .status()
                     .map_err(|e| format!("Failed to restart: {}", e))?;
                 Ok(())
@@ -377,10 +382,7 @@ impl Platform for MacOSPlatform {
             SystemCommand::Shutdown => {
                 // Use osascript to shut down
                 Command::new("osascript")
-                    .args([
-                        "-e",
-                        r#"tell application "System Events" to shut down"#,
-                    ])
+                    .args(["-e", r#"tell application "System Events" to shut down"#])
                     .status()
                     .map_err(|e| format!("Failed to shutdown: {}", e))?;
                 Ok(())
