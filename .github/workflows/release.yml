@@ -1,0 +1,231 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libxdo-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - name: Build release binary
+        run: cargo build --release --no-default-features --features iced-ui
+
+      - name: Create tarball
+        run: |
+          mkdir -p nova-linux-x86_64
+          cp target/release/nova-iced nova-linux-x86_64/nova
+          cp README.md LICENSE* nova-linux-x86_64/ 2>/dev/null || true
+          chmod +x nova-linux-x86_64/nova
+          tar -czvf nova-linux-x86_64.tar.gz nova-linux-x86_64
+
+      - name: Create AppImage
+        run: |
+          # Download appimagetool
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+          # Create AppDir structure
+          mkdir -p Nova.AppDir/usr/bin
+          mkdir -p Nova.AppDir/usr/share/applications
+          mkdir -p Nova.AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # Copy files
+          cp target/release/nova-iced Nova.AppDir/usr/bin/nova
+          chmod +x Nova.AppDir/usr/bin/nova
+          cp assets/nova.desktop Nova.AppDir/
+          cp assets/nova.desktop Nova.AppDir/usr/share/applications/
+          cp assets/nova.png Nova.AppDir/nova.png
+          cp assets/nova.png Nova.AppDir/usr/share/icons/hicolor/256x256/apps/nova.png
+
+          # Create AppRun
+          cat > Nova.AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          SELF=$(readlink -f "$0")
+          HERE=${SELF%/*}
+          export PATH="${HERE}/usr/bin:${PATH}"
+          exec "${HERE}/usr/bin/nova" "$@"
+          APPRUN
+          chmod +x Nova.AppDir/AppRun
+
+          # Build AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage Nova.AppDir Nova-x86_64.AppImage
+
+      - name: Upload tarball artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-linux-x86_64-tar
+          path: nova-linux-x86_64.tar.gz
+
+      - name: Upload AppImage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-linux-x86_64-appimage
+          path: Nova-x86_64.AppImage
+
+  build-macos-intel:
+    name: Build macOS (Intel)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Build release binary
+        run: cargo build --release --no-default-features --features iced-ui --target x86_64-apple-darwin
+
+      - name: Create app bundle
+        run: |
+          mkdir -p Nova.app/Contents/MacOS
+          mkdir -p Nova.app/Contents/Resources
+          cp target/x86_64-apple-darwin/release/nova-iced Nova.app/Contents/MacOS/Nova
+          chmod +x Nova.app/Contents/MacOS/Nova
+
+          # Create Info.plist
+          cat > Nova.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>Nova</string>
+            <key>CFBundleDisplayName</key>
+            <string>Nova</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.nova.launcher</string>
+            <key>CFBundleVersion</key>
+            <string>${GITHUB_REF_NAME#v}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${GITHUB_REF_NAME#v}</string>
+            <key>CFBundleExecutable</key>
+            <string>Nova</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+            <key>LSUIElement</key>
+            <true/>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Create DMG
+          hdiutil create -volname "Nova" -srcfolder Nova.app -ov -format UDZO nova-macos-x86_64.dmg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-macos-x86_64
+          path: nova-macos-x86_64.dmg
+
+  build-macos-arm:
+    name: Build macOS (Apple Silicon)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Build release binary
+        run: cargo build --release --no-default-features --features iced-ui --target aarch64-apple-darwin
+
+      - name: Create app bundle
+        run: |
+          mkdir -p Nova.app/Contents/MacOS
+          mkdir -p Nova.app/Contents/Resources
+          cp target/aarch64-apple-darwin/release/nova-iced Nova.app/Contents/MacOS/Nova
+          chmod +x Nova.app/Contents/MacOS/Nova
+
+          # Create Info.plist
+          cat > Nova.app/Contents/Info.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key>
+            <string>Nova</string>
+            <key>CFBundleDisplayName</key>
+            <string>Nova</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.nova.launcher</string>
+            <key>CFBundleVersion</key>
+            <string>${GITHUB_REF_NAME#v}</string>
+            <key>CFBundleShortVersionString</key>
+            <string>${GITHUB_REF_NAME#v}</string>
+            <key>CFBundleExecutable</key>
+            <string>Nova</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>11.0</string>
+            <key>LSUIElement</key>
+            <true/>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+
+          # Create DMG
+          hdiutil create -volname "Nova" -srcfolder Nova.app -ov -format UDZO nova-macos-aarch64.dmg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-macos-aarch64
+          path: nova-macos-aarch64.dmg
+
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-macos-intel, build-macos-arm]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Display artifacts
+        run: ls -la artifacts/*/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/nova-linux-x86_64-tar/nova-linux-x86_64.tar.gz
+            artifacts/nova-linux-x86_64-appimage/Nova-x86_64.AppImage
+            artifacts/nova-macos-x86_64/nova-macos-x86_64.dmg
+            artifacts/nova-macos-aarch64/nova-macos-aarch64.dmg
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

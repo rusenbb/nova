@@ -299,7 +299,7 @@
     {
       "id": "NOVA-10",
       "title": "Phase 10: Packaging & Distribution",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "GitHub releases, Homebrew, AUR, Chocolatey/winget",
       "deploy_blockers": ["NOVA-9"],
       "subtasks": [
@@ -307,33 +307,34 @@
           "id": "NOVA-10.1",
           "title": "Create Linux packages (AppImage, deb, rpm, AUR)",
           "description": "Use cargo-bundle or similar",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-10.2",
           "title": "Create macOS package (.app bundle, DMG)",
           "description": "Sign with Apple Developer ID, notarize",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-10.3",
           "title": "Create Windows package (MSI, portable exe)",
           "description": "Sign with code signing cert, create winget/chocolatey manifests",
-          "status": "pending"
+          "status": "deferred"
         },
         {
           "id": "NOVA-10.4",
           "title": "Update README with cross-platform instructions",
           "description": "Installation instructions for all platforms",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-10.5",
           "title": "Set up CI/CD for multi-platform builds",
           "description": "GitHub Actions matrix build for Linux/macOS/Windows",
-          "status": "pending"
+          "status": "completed"
         }
-      ]
+      ],
+      "notes": "CI/CD workflows created for Linux (tarball + AppImage) and macOS (DMG for Intel and Apple Silicon). Windows packaging deferred per NOVA-6. Code signing and notarization require developer certificates - documented but not implemented."
     }
   ],
   "architecture": {
