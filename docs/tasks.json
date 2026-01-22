@@ -32,7 +32,7 @@
     {
       "id": "NOVA-2",
       "title": "Phase 2: Extract Core Engine (Platform-Agnostic)",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-1"],
       "subtasks": [
@@ -40,25 +40,25 @@
           "id": "NOVA-2.1",
           "title": "Create src/core/mod.rs module structure",
           "description": "Organize: search.rs, config.rs, extensions.rs, calculator.rs, clipboard_history.rs, emoji.rs, units.rs, file_search.rs",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-2.2",
           "title": "Extract SearchResult enum and search logic",
           "description": "Move search_with_commands, search_in_command_mode to core module, make platform-agnostic",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-2.3",
           "title": "Extract config.rs (already mostly portable)",
           "description": "Remove generate_css (GTK-specific), keep Config struct and serialization",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-2.4",
           "title": "Extract ExecutionAction and make it dispatch via Platform trait",
           "description": "executor.rs becomes platform-agnostic by delegating to Platform implementation",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     },
