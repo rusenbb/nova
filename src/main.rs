@@ -1,6 +1,7 @@
 mod config;
 mod error;
 mod executor;
+mod platform;
 mod search;
 mod services;
 mod settings;
