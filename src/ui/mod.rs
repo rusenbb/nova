@@ -7,6 +7,8 @@ pub mod app;
 #[cfg(feature = "iced-ui")]
 pub mod hotkey;
 #[cfg(feature = "iced-ui")]
+pub mod settings;
+#[cfg(feature = "iced-ui")]
 pub mod single_instance;
 #[cfg(feature = "iced-ui")]
 pub mod style;

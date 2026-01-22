@@ -237,23 +237,36 @@
     {
       "id": "NOVA-8",
       "title": "Phase 8: Settings UI Migration",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-3"],
       "subtasks": [
         {
           "id": "NOVA-8.1",
           "title": "Port settings.rs from GTK to iced",
-          "description": "Recreate settings window with iced widgets",
-          "status": "pending"
+          "description": "Created SettingsWindow with tabs for General, Appearance, Aliases, Quicklinks",
+          "status": "completed"
         },
         {
           "id": "NOVA-8.2",
           "title": "Implement theme preview in settings",
-          "description": "Live preview of theme changes",
-          "status": "pending"
+          "description": "Added live theme preview in Appearance tab",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-8.3",
+          "title": "Implement aliases management",
+          "description": "Add/Edit/Delete aliases with form UI",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-8.4",
+          "title": "Implement quicklinks management",
+          "description": "Add/Edit/Delete quicklinks with form UI",
+          "status": "completed"
         }
-      ]
+      ],
+      "notes": "Settings window component is complete. Multi-window integration with main app pending future enhancement."
     },
     {
       "id": "NOVA-9",
