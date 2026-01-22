@@ -216,21 +216,21 @@
     {
       "id": "NOVA-7",
       "title": "Phase 7: Cross-Platform Clipboard (arboard)",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-3"],
       "subtasks": [
         {
           "id": "NOVA-7.1",
-          "title": "Replace xclip with arboard crate",
-          "description": "Update clipboard.rs to use arboard for read/write",
-          "status": "pending"
+          "title": "Make ClipboardHistory platform-agnostic",
+          "description": "Removed xclip dependency, uses Platform trait for clipboard access",
+          "status": "completed"
         },
         {
           "id": "NOVA-7.2",
-          "title": "Update ClipboardHistory to use arboard polling",
-          "description": "arboard may need different polling strategy per platform",
-          "status": "pending"
+          "title": "Add periodic clipboard polling subscription",
+          "description": "Added iced::time::every subscription for 500ms polling interval",
+          "status": "completed"
         }
       ]
     },

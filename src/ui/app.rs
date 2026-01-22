@@ -272,7 +272,7 @@ impl NovaApp {
 
             Message::PollClipboard => {
                 if let Some(content) = self.platform.clipboard_read() {
-                    self.clipboard_history.add(content);
+                    self.clipboard_history.poll_with_content(&content);
                 }
                 Task::none()
             }
@@ -349,7 +349,11 @@ impl NovaApp {
             Subscription::none()
         };
 
-        Subscription::batch([keyboard_sub, window_sub, hotkey_sub, ipc_sub])
+        // Clipboard polling subscription (every 500ms)
+        let clipboard_sub = iced::time::every(std::time::Duration::from_millis(500))
+            .map(|_| Message::PollClipboard);
+
+        Subscription::batch([keyboard_sub, window_sub, hotkey_sub, ipc_sub, clipboard_sub])
     }
 
     /// Get the window title.
