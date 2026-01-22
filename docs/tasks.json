@@ -65,52 +65,52 @@
     {
       "id": "NOVA-3",
       "title": "Phase 3: iced UI Implementation",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-2"],
       "subtasks": [
         {
           "id": "NOVA-3.1",
           "title": "Add iced dependencies to Cargo.toml",
-          "description": "Add: iced = \"0.14\", global-hotkey = \"0.7\", arboard = \"3.6\", interprocess = \"2\"",
-          "status": "pending"
+          "description": "Add: iced = \"0.13\", global-hotkey = \"0.6\", arboard = \"3.4\"",
+          "status": "completed"
         },
         {
           "id": "NOVA-3.2",
           "title": "Create src/ui/mod.rs with iced Application",
           "description": "Define NovaApp struct implementing iced::Application with Message enum",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-3.3",
           "title": "Implement main window layout",
           "description": "Container with text_input (search), scrollable list (results). Borderless, transparent, always-on-top",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-3.4",
           "title": "Implement keyboard navigation",
           "description": "Handle Escape (hide), Enter (execute), Up/Down (navigate), Tab (command mode), Backspace (exit mode)",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-3.5",
           "title": "Implement theming system",
           "description": "Port theme definitions (catppuccin, nord, dracula, etc.) to iced styling",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-3.6",
           "title": "Implement command mode pill UI",
           "description": "Show keyword pill when in command mode, handle extension queries",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     },
     {
       "id": "NOVA-4",
       "title": "Phase 4: Global Hotkey & Single Instance",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-3"],
       "subtasks": [
@@ -118,19 +118,19 @@
           "id": "NOVA-4.1",
           "title": "Integrate global-hotkey crate",
           "description": "Register Alt+Space (configurable), handle hotkey events to toggle window",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-4.2",
           "title": "Implement cross-platform single-instance using interprocess",
           "description": "Replace Unix socket with interprocess local socket (works on all platforms)",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-4.3",
           "title": "Implement window show/hide toggle",
           "description": "Use iced window commands to show/hide, position, focus",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     },

@@ -1,5 +1,7 @@
 //! Main Nova application using iced.
 
+use super::hotkey::{self, HotkeyMessage};
+use super::single_instance::InstanceMessage;
 use super::style;
 use super::theme::NovaTheme;
 use crate::config::Config;
@@ -11,10 +13,12 @@ use crate::services::custom_commands::CustomCommandsIndex;
 use crate::services::extension::{Extension, ExtensionKind};
 use crate::services::extensions::{get_extensions_dir, ExtensionManager};
 
+use iced::futures::{stream, Stream};
 use iced::keyboard::{self, Key};
 use iced::widget::{column, container, row, scrollable, text, text_input, Column, Space};
 use iced::window;
 use iced::{Element, Length, Subscription, Task};
+use std::sync::{mpsc::TryRecvError, Arc, Mutex};
 
 /// The main Nova application state.
 pub struct NovaApp {
@@ -43,6 +47,11 @@ pub struct NovaApp {
     // Window state
     visible: bool,
     input_id: text_input::Id,
+    window_id: Option<window::Id>,
+
+    // Channel receivers for subscriptions (wrapped in Arc<Mutex> for thread safety)
+    hotkey_rx: Option<Arc<Mutex<std::sync::mpsc::Receiver<HotkeyMessage>>>>,
+    ipc_rx: Option<Arc<Mutex<std::sync::mpsc::Receiver<InstanceMessage>>>>,
 }
 
 /// Messages that the application can handle.
@@ -64,6 +73,7 @@ pub enum Message {
     HideWindow,
     WindowFocused,
     WindowUnfocused,
+    WindowOpened(window::Id),
 
     // Mode changes
     EnterCommandMode,
@@ -77,6 +87,12 @@ pub enum Message {
     // Clipboard polling
     PollClipboard,
 
+    // Global hotkey events
+    Hotkey(HotkeyMessage),
+
+    // IPC events (from other instances)
+    Ipc(InstanceMessage),
+
     // Settings
     OpenSettings,
 
@@ -88,6 +104,16 @@ pub enum Message {
 impl NovaApp {
     /// Create a new Nova application.
     pub fn new() -> (Self, Task<Message>) {
+        Self::new_with_channels(None, None)
+    }
+
+    /// Create a new Nova application with channel receivers for hotkey and IPC.
+    pub fn new_with_channels(
+        hotkey_rx: Option<std::sync::mpsc::Receiver<HotkeyMessage>>,
+        ipc_rx: Option<std::sync::mpsc::Receiver<InstanceMessage>>,
+    ) -> (Self, Task<Message>) {
+        let hotkey_rx = hotkey_rx.map(|rx| Arc::new(Mutex::new(rx)));
+        let ipc_rx = ipc_rx.map(|rx| Arc::new(Mutex::new(rx)));
         let platform = platform::current();
         let config = Config::load();
         let theme = NovaTheme::by_name(&config.appearance.theme);
@@ -117,6 +143,9 @@ impl NovaApp {
             command_mode: None,
             visible: true,
             input_id: text_input::Id::unique(),
+            window_id: None,
+            hotkey_rx,
+            ipc_rx,
         };
 
         // Focus the input on startup
@@ -214,6 +243,33 @@ impl NovaApp {
                 Task::none()
             }
 
+            Message::WindowOpened(id) => {
+                self.window_id = Some(id);
+                Task::none()
+            }
+
+            Message::Hotkey(hotkey_msg) => match hotkey_msg {
+                HotkeyMessage::TogglePressed => {
+                    println!("[Nova] Global hotkey pressed - toggling window");
+                    if self.visible {
+                        self.hide_window()
+                    } else {
+                        self.show_window()
+                    }
+                }
+                HotkeyMessage::RegistrationFailed(err) => {
+                    eprintln!("[Nova] Hotkey registration failed: {}", err);
+                    Task::none()
+                }
+            },
+
+            Message::Ipc(ipc_msg) => match ipc_msg {
+                InstanceMessage::ShowRequested => {
+                    println!("[Nova] Show requested from another instance");
+                    self.show_window()
+                }
+            },
+
             Message::PollClipboard => {
                 if let Some(content) = self.platform.clipboard_read() {
                     self.clipboard_history.add(content);
@@ -254,7 +310,7 @@ impl NovaApp {
 
     /// Handle subscriptions (keyboard, timers, etc.).
     pub fn subscription(&self) -> Subscription<Message> {
-        keyboard::on_key_press(|key, modifiers| match key.as_ref() {
+        let keyboard_sub = keyboard::on_key_press(|key, modifiers| match key.as_ref() {
             Key::Named(keyboard::key::Named::Escape) => Some(Message::EscapePressed),
             Key::Named(keyboard::key::Named::ArrowUp) => Some(Message::SelectPrevious),
             Key::Named(keyboard::key::Named::ArrowDown) => Some(Message::SelectNext),
@@ -264,7 +320,36 @@ impl NovaApp {
                 Some(Message::ExitCommandMode)
             }
             _ => None,
-        })
+        });
+
+        // Window events subscription
+        let window_sub = window::open_events().map(Message::WindowOpened);
+
+        // Hotkey subscription
+        let hotkey_sub = if let Some(rx) = &self.hotkey_rx {
+            let rx = rx.clone();
+            Subscription::run_with_id(
+                "nova-hotkey",
+                hotkey::hotkey_stream_arc(rx),
+            )
+            .map(Message::Hotkey)
+        } else {
+            Subscription::none()
+        };
+
+        // IPC subscription
+        let ipc_sub = if let Some(rx) = &self.ipc_rx {
+            let rx = rx.clone();
+            Subscription::run_with_id(
+                "nova-ipc",
+                ipc_stream_arc(rx),
+            )
+            .map(Message::Ipc)
+        } else {
+            Subscription::none()
+        };
+
+        Subscription::batch([keyboard_sub, window_sub, hotkey_sub, ipc_sub])
     }
 
     /// Get the window title.
@@ -574,7 +659,23 @@ impl NovaApp {
         self.search_query.clear();
         self.command_mode = None;
         self.update_search();
-        text_input::focus(self.input_id.clone())
+
+        // Show and focus the window
+        let show_task = if let Some(id) = self.window_id {
+            Task::batch([
+                window::gain_focus(id),
+                window::change_mode(id, window::Mode::Windowed),
+            ])
+        } else {
+            window::get_latest().and_then(|id| {
+                Task::batch([
+                    window::gain_focus(id),
+                    window::change_mode(id, window::Mode::Windowed),
+                ])
+            })
+        };
+
+        Task::batch([show_task, text_input::focus(self.input_id.clone())])
     }
 
     fn hide_window(&mut self) -> Task<Message> {
@@ -582,9 +683,13 @@ impl NovaApp {
         self.search_query.clear();
         self.command_mode = None;
         self.results.clear();
-        // In iced, we'd minimize or hide the window
-        // For now, just update state
-        Task::none()
+
+        // Minimize/hide the window
+        if let Some(id) = self.window_id {
+            window::change_mode(id, window::Mode::Hidden)
+        } else {
+            window::get_latest().and_then(|id| window::change_mode(id, window::Mode::Hidden))
+        }
     }
 
     fn reset_and_hide(&mut self) -> Task<Message> {
@@ -600,4 +705,28 @@ impl Default for NovaApp {
     fn default() -> Self {
         Self::new().0
     }
+}
+
+/// Create a stream of IPC messages from an Arc<Mutex<Receiver>>.
+fn ipc_stream_arc(
+    rx: Arc<Mutex<std::sync::mpsc::Receiver<InstanceMessage>>>,
+) -> impl Stream<Item = InstanceMessage> {
+    stream::unfold(rx, |rx| async move {
+        loop {
+            let result = {
+                let guard = rx.lock().ok()?;
+                guard.try_recv()
+            };
+            match result {
+                Ok(msg) => return Some((msg, rx)),
+                Err(TryRecvError::Empty) => {
+                    // Small delay to avoid busy-waiting
+                    tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    return None;
+                }
+            }
+        }
+    })
 }

@@ -18,7 +18,7 @@ required-features = ["iced-ui"]
 [features]
 default = ["gtk-ui"]
 gtk-ui = ["gtk", "gdk", "glib", "gio", "pango"]
-iced-ui = ["iced", "global-hotkey", "arboard"]
+iced-ui = ["iced", "global-hotkey", "arboard", "interprocess", "ctrlc", "tokio"]
 
 [dependencies]
 # GTK UI (Linux legacy, optional)
@@ -32,6 +32,7 @@ pango = { version = "0.18", optional = true }
 iced = { version = "0.13", optional = true, features = ["tokio"] }
 global-hotkey = { version = "0.6", optional = true }
 arboard = { version = "3.4", optional = true }
+interprocess = { version = "2", optional = true, features = ["tokio"] }
 
 # App launcher (Linux-specific, but compiles on all platforms)
 freedesktop-desktop-entry = "0.7"
@@ -41,6 +42,8 @@ walkdir = "2"
 
 # Utils
 once_cell = "1"
+ctrlc = { version = "3.4", optional = true }
+tokio = { version = "1", optional = true, features = ["time", "sync"] }
 
 # Config
 serde = { version = "1.0", features = ["derive"] }
