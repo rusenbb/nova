@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use crate::platform::{AppEntry, SystemCommand};
 use crate::services::clipboard::ClipboardHistory;
 use crate::services::custom_commands::{CustomCommandsIndex, ScriptOutputMode};
-use crate::services::extension::{Extension, ExtensionIndex, ExtensionKind};
+use crate::services::extension::{Extension, ExtensionKind};
 use crate::services::extensions::{ExtensionManager, LoadedCommand};
 use crate::services::{calculator, emoji, file_search, units};
 use fuzzy_matcher::skim::SkimMatcherV2;

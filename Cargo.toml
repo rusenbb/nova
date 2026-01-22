@@ -1,22 +1,39 @@
 [package]
 name = "nova"
 version = "0.1.0"
-description = "Keyboard-driven productivity launcher for Linux"
+description = "Keyboard-driven productivity launcher"
 authors = ["rusen"]
 edition = "2021"
 
 [[bin]]
 name = "nova"
 path = "src/main.rs"
+required-features = ["gtk-ui"]
+
+[[bin]]
+name = "nova-iced"
+path = "src/main_iced.rs"
+required-features = ["iced-ui"]
+
+[features]
+default = ["gtk-ui"]
+gtk-ui = ["gtk", "gdk", "glib", "gio", "pango"]
+iced-ui = ["iced", "global-hotkey", "arboard"]
 
 [dependencies]
-gtk = { version = "0.18", features = ["v3_24"] }
-gdk = "0.18"
-glib = "0.18"
-gio = "0.18"
-pango = "0.18"
+# GTK UI (Linux legacy, optional)
+gtk = { version = "0.18", features = ["v3_24"], optional = true }
+gdk = { version = "0.18", optional = true }
+glib = { version = "0.18", optional = true }
+gio = { version = "0.18", optional = true }
+pango = { version = "0.18", optional = true }
 
-# App launcher
+# iced UI (cross-platform, optional)
+iced = { version = "0.13", optional = true, features = ["tokio"] }
+global-hotkey = { version = "0.6", optional = true }
+arboard = { version = "3.4", optional = true }
+
+# App launcher (Linux-specific, but compiles on all platforms)
 freedesktop-desktop-entry = "0.7"
 fuzzy-matcher = "0.3"
 dirs = "5"
