@@ -20,7 +20,7 @@ path = "src/main_iced.rs"
 required-features = ["iced-ui"]
 
 [features]
-default = ["gtk-ui"]
+default = []  # Library only by default, native frontends use FFI
 gtk-ui = ["gtk", "gdk", "glib", "gio", "pango"]
 iced-ui = ["iced", "global-hotkey", "arboard", "interprocess", "ctrlc", "tokio"]
 
