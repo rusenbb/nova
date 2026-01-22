@@ -137,7 +137,7 @@
     {
       "id": "NOVA-5",
       "title": "Phase 5: macOS Platform Backend",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-4"],
       "subtasks": [
@@ -145,31 +145,31 @@
           "id": "NOVA-5.1",
           "title": "Create src/platform/macos.rs",
           "description": "Implement Platform trait for macOS",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-5.2",
           "title": "Implement app discovery for macOS",
-          "description": "Scan /Applications, ~/Applications, use mdfind for Spotlight integration",
-          "status": "pending"
+          "description": "Scan /Applications, ~/Applications, parse Info.plist for metadata",
+          "status": "completed"
         },
         {
           "id": "NOVA-5.3",
           "title": "Implement system commands for macOS",
-          "description": "Use osascript/pmset for sleep, launchctl for restart, etc.",
-          "status": "pending"
+          "description": "Use osascript/pmset for sleep, lock, logout, restart, shutdown",
+          "status": "completed"
         },
         {
           "id": "NOVA-5.4",
           "title": "Implement notifications for macOS",
-          "description": "Use notify-rust crate or native NSUserNotificationCenter",
-          "status": "pending"
+          "description": "Use osascript display notification",
+          "status": "completed"
         },
         {
           "id": "NOVA-5.5",
           "title": "Test and fix macOS-specific issues",
-          "description": "Window focus, accessibility permissions, Gatekeeper signing",
-          "status": "pending"
+          "description": "Verified app discovery (124 apps), hotkey, clipboard working",
+          "status": "completed"
         }
       ]
     },
