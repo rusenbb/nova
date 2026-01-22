@@ -176,9 +176,10 @@
     {
       "id": "NOVA-6",
       "title": "Phase 6: Windows Platform Backend",
-      "status": "pending",
+      "status": "deferred",
       "path_to_prod": "Merge to main after all phases complete",
       "deploy_blockers": ["NOVA-4"],
+      "deferred_reason": "Requires Windows machine for development and testing. Code cannot be compile-checked or tested on macOS due to conditional compilation (#[cfg(target_os = \"windows\")]). Will implement when Windows environment is available.",
       "subtasks": [
         {
           "id": "NOVA-6.1",
