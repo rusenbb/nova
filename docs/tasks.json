@@ -5,7 +5,7 @@
     {
       "id": "NOVA-1",
       "title": "Phase 1: Define Platform Abstraction Traits",
-      "status": "pending",
+      "status": "completed",
       "path_to_prod": "Merge to main after all phases complete, release v0.2.0",
       "deploy_blockers": [],
       "subtasks": [
@@ -13,19 +13,19 @@
           "id": "NOVA-1.1",
           "title": "Create src/platform/mod.rs with Platform trait",
           "description": "Define trait with methods: discover_apps, register_hotkey, unregister_hotkey, clipboard_read, clipboard_write, open_url, open_file, show_notification, system_command, get_config_dir, get_data_dir",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-1.2",
           "title": "Define AppEntry and SystemCommand as platform-agnostic types",
           "description": "Move AppEntry to core module, make it platform-independent",
-          "status": "pending"
+          "status": "completed"
         },
         {
           "id": "NOVA-1.3",
           "title": "Create src/platform/linux.rs implementing Platform trait",
           "description": "Port existing Linux-specific code (xclip, xdg-open, notify-send, XDG .desktop parsing)",
-          "status": "pending"
+          "status": "completed"
         }
       ]
     },
