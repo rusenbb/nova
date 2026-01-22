@@ -14,6 +14,7 @@ final class SearchPanel: NSPanel {
 
     private var results: [SearchResult] = []
     private var selectedIndex: Int = 0
+    private(set) var isPanelVisible: Bool = false
 
     var onSearch: ((String) -> [SearchResult])?
     var onExecute: ((UInt32) -> ExecutionResult)?
@@ -68,6 +69,12 @@ final class SearchPanel: NSPanel {
         setupLayout()
         setupDelegates()
     }
+
+    // MARK: - Key Window Override
+
+    // Allow panel to become key window and accept keyboard input
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
 
     // MARK: - Setup
 
@@ -154,9 +161,11 @@ final class SearchPanel: NSPanel {
 
         // Focus the search field
         makeFirstResponder(searchField)
+        isPanelVisible = true
     }
 
     func hide() {
+        isPanelVisible = false
         orderOut(nil)
         onHide?()
     }
@@ -228,6 +237,41 @@ final class SearchPanel: NSPanel {
 extension SearchPanel: NSTextFieldDelegate {
     func controlTextDidChange(_ obj: Notification) {
         performSearch()
+    }
+
+    func control(_ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+        switch commandSelector {
+        case #selector(insertNewline(_:)):
+            // Return key - execute selected result
+            executeSelected()
+            return true
+
+        case #selector(moveUp(_:)):
+            // Up arrow
+            if selectedIndex > 0 {
+                selectedIndex -= 1
+                resultsTableView.selectRowIndexes(IndexSet(integer: selectedIndex), byExtendingSelection: false)
+                resultsTableView.scrollRowToVisible(selectedIndex)
+            }
+            return true
+
+        case #selector(moveDown(_:)):
+            // Down arrow
+            if selectedIndex < results.count - 1 {
+                selectedIndex += 1
+                resultsTableView.selectRowIndexes(IndexSet(integer: selectedIndex), byExtendingSelection: false)
+                resultsTableView.scrollRowToVisible(selectedIndex)
+            }
+            return true
+
+        case #selector(cancelOperation(_:)):
+            // Escape key
+            hide()
+            return true
+
+        default:
+            return false
+        }
     }
 }
 

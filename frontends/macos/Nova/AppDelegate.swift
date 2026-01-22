@@ -54,16 +54,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "sparkle.magnifyingglass", accessibilityDescription: "Nova")
             button.action = #selector(statusItemClicked)
             button.target = self
+            button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
 
+        // Don't assign menu directly - we'll show it on right-click only
+    }
+
+    private func createMenu() -> NSMenu {
         let menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Show Nova", action: #selector(showPanel), keyEquivalent: " "))
+        menu.addItem(NSMenuItem(title: "Show Nova (Option+Space)", action: #selector(showPanel), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Reload", action: #selector(reloadConfig), keyEquivalent: "r"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit Nova", action: #selector(quitApp), keyEquivalent: "q"))
-
-        statusItem?.menu = menu
+        return menu
     }
 
     private func setupSearchPanel() {
@@ -91,11 +95,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeyManager = HotkeyManager()
 
         let success = hotkeyManager?.start { [weak self] in
+            print("[Nova] Hotkey triggered!")
             self?.togglePanel()
         }
 
-        if success != true {
-            print("[Nova] Hotkey registration failed - accessibility permissions may be needed")
+        if success == true {
+            print("[Nova] Hotkey registered successfully (Option+Space)")
+        } else {
+            print("[Nova] Hotkey registration FAILED")
+            print("[Nova] Please grant Accessibility permissions:")
+            print("[Nova]   System Settings → Privacy & Security → Accessibility → Enable Nova")
         }
     }
 
@@ -109,10 +118,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Actions
 
     @objc private func statusItemClicked() {
-        // Right-click shows menu, left-click toggles panel
-        if let event = NSApp.currentEvent, event.type == .rightMouseUp {
-            statusItem?.menu?.popUp(positioning: nil, at: NSPoint.zero, in: statusItem?.button)
+        guard let event = NSApp.currentEvent, let button = statusItem?.button else { return }
+
+        if event.type == .rightMouseUp {
+            // Right-click shows menu
+            let menu = createMenu()
+            menu.popUp(positioning: nil, at: NSPoint(x: 0, y: button.bounds.height + 5), in: button)
         } else {
+            // Left-click toggles panel
             togglePanel()
         }
     }
@@ -122,10 +135,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePanel() {
-        if searchPanel?.isVisible == true {
-            searchPanel?.hide()
+        guard let panel = searchPanel else { return }
+
+        if panel.isPanelVisible {
+            print("[Nova] Hiding panel")
+            panel.hide()
         } else {
-            searchPanel?.show()
+            print("[Nova] Showing panel")
+            panel.show()
         }
     }
 
