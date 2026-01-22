@@ -101,6 +101,7 @@ jobs:
           mkdir -p Nova.app/Contents/Resources
           cp target/x86_64-apple-darwin/release/nova-iced Nova.app/Contents/MacOS/Nova
           chmod +x Nova.app/Contents/MacOS/Nova
+          cp assets/icons/nova.icns Nova.app/Contents/Resources/AppIcon.icns
 
           # Create Info.plist
           cat > Nova.app/Contents/Info.plist << 'EOF'
@@ -120,6 +121,8 @@ jobs:
             <string>${GITHUB_REF_NAME#v}</string>
             <key>CFBundleExecutable</key>
             <string>Nova</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
             <key>CFBundlePackageType</key>
             <string>APPL</string>
             <key>LSMinimumSystemVersion</key>
@@ -161,6 +164,7 @@ jobs:
           mkdir -p Nova.app/Contents/Resources
           cp target/aarch64-apple-darwin/release/nova-iced Nova.app/Contents/MacOS/Nova
           chmod +x Nova.app/Contents/MacOS/Nova
+          cp assets/icons/nova.icns Nova.app/Contents/Resources/AppIcon.icns
 
           # Create Info.plist
           cat > Nova.app/Contents/Info.plist << 'EOF'
@@ -180,6 +184,8 @@ jobs:
             <string>${GITHUB_REF_NAME#v}</string>
             <key>CFBundleExecutable</key>
             <string>Nova</string>
+            <key>CFBundleIconFile</key>
+            <string>AppIcon</string>
             <key>CFBundlePackageType</key>
             <string>APPL</string>
             <key>LSMinimumSystemVersion</key>

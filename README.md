@@ -1,6 +1,17 @@
-# Nova
+<p align="center">
+  <img src="assets/user-selected/transparent/hq-logo-nova.png" alt="Nova Logo" width="180">
+</p>
 
-**A keyboard-driven productivity launcher for Linux and macOS.** Think [Raycast](https://raycast.com), but open source and cross-platform.
+<h1 align="center">Nova</h1>
+
+<p align="center">
+  <strong>A keyboard-driven productivity launcher for Linux and macOS.</strong><br>
+  Think <a href="https://raycast.com">Raycast</a>, but open source and cross-platform.
+</p>
+
+<p align="center">
+  <img src="assets/user-selected/transparent/nova-writing.png" alt="Nova" width="400">
+</p>
 
 Nova helps you launch apps, run custom commands, and access your favorite websites — all without touching the mouse.
 
