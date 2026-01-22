@@ -10,9 +10,6 @@ pub mod ffi;
 pub mod platform;
 pub mod services;
 
-#[cfg(feature = "iced-ui")]
-pub mod ui;
-
 // Re-export commonly used types
 pub use config::Config;
 pub use platform::{AppEntry, Platform, SystemCommand};

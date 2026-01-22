@@ -2,8 +2,7 @@
 //!
 //! This module implements the Platform trait for macOS using:
 //! - /Applications and ~/Applications scanning for app discovery
-//! - arboard crate for clipboard operations (when iced-ui feature enabled)
-//! - pbcopy/pbpaste fallback for clipboard
+//! - pbcopy/pbpaste for clipboard operations
 //! - `open` command for URLs and files
 //! - osascript for notifications and system commands
 //! - pmset for sleep, loginwindow for logout
@@ -14,90 +13,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-#[cfg(feature = "iced-ui")]
-use arboard::Clipboard;
-
-// ============================================================================
-// iced-ui specific window configuration (only when iced-ui feature is enabled)
-// ============================================================================
-
-#[cfg(feature = "iced-ui")]
-mod iced_window {
-    use iced::window::{self, raw_window_handle::HasWindowHandle};
-    use objc2_app_kit::{NSApplication, NSWindowCollectionBehavior};
-    use objc2_foundation::MainThreadMarker;
-
-    /// Window level for appearing over fullscreen apps
-    const OVERLAY_WINDOW_LEVEL: isize = 10000;
-
-    /// Configure a window to appear over fullscreen apps.
-    pub fn configure_window_task<Message: Send + 'static + Clone>(
-        window_id: window::Id,
-        message: Message,
-    ) -> iced::Task<Message> {
-        window::run_with_handle(window_id, move |handle| {
-            configure_window_from_handle(&handle);
-            message
-        })
-    }
-
-    fn configure_window_from_handle(handle: &impl HasWindowHandle) {
-        use iced::window::raw_window_handle::RawWindowHandle;
-        use objc2::rc::Retained;
-        use objc2_app_kit::NSView;
-
-        let Ok(window_handle) = handle.window_handle() else {
-            eprintln!("[Nova macOS] Failed to get window handle");
-            return;
-        };
-
-        match window_handle.as_raw() {
-            RawWindowHandle::AppKit(appkit_handle) => {
-                let ns_view_ptr = appkit_handle.ns_view.as_ptr() as *mut NSView;
-                let ns_view: Retained<NSView> =
-                    unsafe { Retained::retain(ns_view_ptr) }.expect("NSView pointer should be valid");
-
-                if let Some(ns_window) = ns_view.window() {
-                    let behavior = NSWindowCollectionBehavior::CanJoinAllSpaces
-                        | NSWindowCollectionBehavior::FullScreenAuxiliary;
-
-                    unsafe {
-                        ns_window.setCollectionBehavior(behavior);
-                    }
-
-                    ns_window.setLevel(OVERLAY_WINDOW_LEVEL);
-                    println!(
-                        "[Nova macOS] Window configured for fullscreen overlay (level: {})",
-                        OVERLAY_WINDOW_LEVEL
-                    );
-                } else {
-                    eprintln!("[Nova macOS] NSView has no associated window");
-                }
-            }
-            _ => {
-                eprintln!("[Nova macOS] Not an AppKit window handle");
-            }
-        }
-    }
-
-    /// Activate the application (bring to front).
-    pub fn activate_app() {
-        if let Some(mtm) = MainThreadMarker::new() {
-            let app = NSApplication::sharedApplication(mtm);
-            unsafe {
-                app.activate();
-            }
-        }
-    }
-}
-
-#[cfg(feature = "iced-ui")]
-pub use iced_window::{activate_app, configure_window_task};
-
-// ============================================================================
-// Core Platform Implementation (always available)
-// ============================================================================
-
 /// Check if we're running on macOS.
 #[inline]
 pub fn is_macos() -> bool {
@@ -105,18 +20,12 @@ pub fn is_macos() -> bool {
 }
 
 /// macOS platform implementation.
-pub struct MacOSPlatform {
-    #[cfg(feature = "iced-ui")]
-    clipboard: std::sync::Mutex<Option<Clipboard>>,
-}
+pub struct MacOSPlatform;
 
 impl MacOSPlatform {
     /// Create a new macOS platform instance.
     pub fn new() -> Self {
-        Self {
-            #[cfg(feature = "iced-ui")]
-            clipboard: std::sync::Mutex::new(Clipboard::new().ok()),
-        }
+        Self
     }
 
     /// Parse an .app bundle's Info.plist to extract application metadata.
@@ -265,34 +174,6 @@ impl MacOSPlatform {
             }
         }
     }
-
-    #[allow(dead_code)]
-    fn discover_via_spotlight(&self, apps: &mut Vec<AppEntry>, seen: &mut HashSet<String>) {
-        let output = Command::new("mdfind")
-            .args(["kMDItemContentType == 'com.apple.application-bundle'"])
-            .output();
-
-        let Ok(output) = output else {
-            return;
-        };
-
-        if !output.status.success() {
-            return;
-        }
-
-        let paths = String::from_utf8_lossy(&output.stdout);
-        for line in paths.lines() {
-            let path = Path::new(line.trim());
-            if path.is_dir() && path.extension().is_some_and(|ext| ext == "app") {
-                if let Some(app) = self.parse_app_bundle(path) {
-                    if !seen.contains(&app.id) {
-                        seen.insert(app.id.clone());
-                        apps.push(app);
-                    }
-                }
-            }
-        }
-    }
 }
 
 impl Default for MacOSPlatform {
@@ -320,47 +201,29 @@ impl Platform for MacOSPlatform {
     }
 
     fn clipboard_read(&self) -> Option<String> {
-        #[cfg(feature = "iced-ui")]
-        {
-            let mut guard = self.clipboard.lock().ok()?;
-            let clipboard = guard.as_mut()?;
-            clipboard.get_text().ok()
-        }
-        #[cfg(not(feature = "iced-ui"))]
-        {
-            let output = Command::new("pbpaste").output().ok()?;
-            if output.status.success() {
-                Some(String::from_utf8_lossy(&output.stdout).to_string())
-            } else {
-                None
-            }
+        let output = Command::new("pbpaste").output().ok()?;
+        if output.status.success() {
+            Some(String::from_utf8_lossy(&output.stdout).to_string())
+        } else {
+            None
         }
     }
 
     fn clipboard_write(&self, content: &str) -> Result<(), String> {
-        #[cfg(feature = "iced-ui")]
-        {
-            let mut guard = self.clipboard.lock().map_err(|e| e.to_string())?;
-            let clipboard = guard.as_mut().ok_or("Clipboard not initialized")?;
-            clipboard.set_text(content).map_err(|e| e.to_string())
-        }
-        #[cfg(not(feature = "iced-ui"))]
-        {
-            use std::io::Write;
-            let mut child = Command::new("pbcopy")
-                .stdin(std::process::Stdio::piped())
-                .spawn()
-                .map_err(|e| format!("Failed to spawn pbcopy: {}", e))?;
+        use std::io::Write;
+        let mut child = Command::new("pbcopy")
+            .stdin(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn pbcopy: {}", e))?;
 
-            if let Some(stdin) = child.stdin.as_mut() {
-                stdin
-                    .write_all(content.as_bytes())
-                    .map_err(|e| format!("Failed to write to pbcopy: {}", e))?;
-            }
-
-            child.wait().map_err(|e| format!("pbcopy failed: {}", e))?;
-            Ok(())
+        if let Some(stdin) = child.stdin.as_mut() {
+            stdin
+                .write_all(content.as_bytes())
+                .map_err(|e| format!("Failed to write to pbcopy: {}", e))?;
         }
+
+        child.wait().map_err(|e| format!("pbcopy failed: {}", e))?;
+        Ok(())
     }
 
     fn open_url(&self, url: &str) -> Result<(), String> {
