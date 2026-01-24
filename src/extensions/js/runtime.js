@@ -233,6 +233,105 @@ globalThis.__nova_execute_command = async (commandId, props = {}) => {
   }
 };
 
+// -----------------------------------------------------------------------------
+// Event Dispatch System
+// -----------------------------------------------------------------------------
+
+// Event handlers registered by extensions
+globalThis.__nova_event_handlers = {};
+
+/**
+ * Register an event handler.
+ * Called by extensions to handle actions, form submissions, etc.
+ *
+ * @param {string} eventId - Unique event identifier
+ * @param {Function} handler - Event handler function
+ */
+Nova.registerEventHandler = (eventId, handler) => {
+  globalThis.__nova_event_handlers[eventId] = handler;
+};
+
+/**
+ * Internal: Dispatch an event to a registered handler.
+ * Called by the Nova runtime when an action is triggered.
+ *
+ * @param {string} eventId - The event ID to dispatch (e.g., "copy:123", "submit")
+ * @param {Object} eventData - Data associated with the event
+ * @returns {Object} Result with success status and optional error
+ */
+globalThis.__nova_dispatch_event = (eventId, eventData = {}) => {
+  try {
+    // First, check if it's a registered callback (cb_xxx format)
+    const handler = globalThis.__nova_event_handlers[eventId];
+
+    if (handler) {
+      const result = handler(eventData);
+      // Handle async handlers
+      if (result instanceof Promise) {
+        // For now, we execute synchronously. Async support will be added later.
+        return { success: true };
+      }
+      return { success: true, result };
+    }
+
+    // Parse action format: "action:arg" or just "action"
+    const colonIndex = eventId.indexOf(':');
+    let action, arg;
+
+    if (colonIndex !== -1) {
+      action = eventId.substring(0, colonIndex);
+      arg = eventId.substring(colonIndex + 1);
+    } else {
+      action = eventId;
+      arg = null;
+    }
+
+    // Check for built-in actions
+    switch (action) {
+      case 'submit':
+        // Form submission - eventData contains form values
+        return { success: true, action: 'submit', data: eventData };
+
+      case 'search':
+        // Search text changed
+        return { success: true, action: 'search', query: eventData.query };
+
+      case 'select':
+        // Item selected
+        return { success: true, action: 'select', itemId: arg || eventData.itemId };
+
+      default:
+        // Custom action - pass to current command's context
+        return {
+          success: true,
+          action: action,
+          arg: arg,
+          data: eventData
+        };
+    }
+  } catch (e) {
+    return { success: false, error: e.message || String(e) };
+  }
+};
+
+/**
+ * Internal: Get the current rendered component.
+ * Called by the runtime to retrieve the latest component tree.
+ *
+ * @returns {Object|null} The rendered component or null
+ */
+globalThis.__nova_get_rendered_component = () => {
+  // This is set by op_nova_render when extension calls Nova.render()
+  return globalThis.__nova_rendered_component || null;
+};
+
+// Store rendered component for retrieval
+const originalRender = Nova.render;
+Nova.render = (component) => {
+  globalThis.__nova_rendered_component = component;
+  return originalRender(component);
+};
+
 // Freeze the Nova API to prevent modifications
 Object.freeze(Nova.clipboard);
 Object.freeze(Nova.storage);

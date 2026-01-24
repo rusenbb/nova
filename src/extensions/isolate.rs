@@ -223,6 +223,87 @@ impl ExtensionIsolate {
         Ok(result_str)
     }
 
+    /// Dispatch an event to the extension.
+    ///
+    /// This is used for interactive callbacks like action triggers, form submissions,
+    /// and search text changes.
+    ///
+    /// # Arguments
+    /// * `event_id` - The event identifier (e.g., "copy:123", "submit", "search")
+    /// * `event_data` - JSON string containing event data
+    ///
+    /// # Returns
+    /// A JSON string with the dispatch result and optionally updated component tree.
+    pub fn dispatch_event(
+        &mut self,
+        event_id: &str,
+        event_data: Option<&str>,
+    ) -> ExtensionResult<String> {
+        // Check state
+        if self.state == IsolateState::Unloaded {
+            return Err(ExtensionError::ExecutionError(
+                "Isolate not loaded. Call load() first.".to_string(),
+            ));
+        }
+
+        if let IsolateState::Error { message } = &self.state {
+            return Err(ExtensionError::ExecutionError(message.clone()));
+        }
+
+        let runtime = self.runtime.as_mut().ok_or_else(|| {
+            ExtensionError::ExecutionError("Runtime not initialized".to_string())
+        })?;
+
+        self.last_active = Instant::now();
+
+        // Build the event dispatch script
+        let event_json = event_data.unwrap_or("{}");
+        let dispatch_script = format!(
+            r#"
+            (function() {{
+                const eventId = "{}";
+                const eventData = {};
+
+                if (typeof globalThis.__nova_dispatch_event !== 'function') {{
+                    return JSON.stringify({{ success: false, error: "Event dispatch not available" }});
+                }}
+
+                try {{
+                    const result = globalThis.__nova_dispatch_event(eventId, eventData);
+
+                    // Also get the current rendered component if any
+                    const component = globalThis.__nova_get_rendered_component
+                        ? globalThis.__nova_get_rendered_component()
+                        : null;
+
+                    return JSON.stringify({{
+                        ...result,
+                        component: component
+                    }});
+                }} catch (e) {{
+                    return JSON.stringify({{ success: false, error: e.message || String(e) }});
+                }}
+            }})()
+            "#,
+            event_id.replace('\\', "\\\\").replace('"', "\\\""),
+            event_json
+        );
+
+        let result = runtime
+            .execute_script("<event>", dispatch_script)
+            .map_err(|e| ExtensionError::ExecutionError(format!("Event dispatch failed: {}", e)))?;
+
+        // Convert result to string
+        let scope = &mut runtime.handle_scope();
+        let local = deno_core::v8::Local::new(scope, result);
+        let result_str = local
+            .to_string(scope)
+            .map(|s| s.to_rust_string_lossy(scope))
+            .unwrap_or_else(|| r#"{"success":false,"error":"Failed to serialize result"}"#.to_string());
+
+        Ok(result_str)
+    }
+
     /// Get the runtime for direct operations (used by host for async ops in Phase 2).
     #[allow(dead_code)]
     pub fn runtime_mut(&mut self) -> Option<&mut JsRuntime> {

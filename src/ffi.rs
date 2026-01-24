@@ -607,24 +607,24 @@ pub unsafe extern "C" fn nova_core_send_event(
         return error_response("Invalid handle or parameters");
     }
 
-    let _core = &mut *handle;
+    let core = &mut *handle;
 
     // Convert C strings to Rust strings
-    let _ext_id = match CStr::from_ptr(extension_id).to_str() {
-        Ok(s) => s,
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s.to_string(),
         Err(_) => {
             return error_response("Invalid extension ID encoding");
         }
     };
 
-    let _cb_id = match CStr::from_ptr(callback_id).to_str() {
+    let cb_id = match CStr::from_ptr(callback_id).to_str() {
         Ok(s) => s,
         Err(_) => {
             return error_response("Invalid callback ID encoding");
         }
     };
 
-    let _event = if event_data.is_null() {
+    let event: Option<&str> = if event_data.is_null() {
         None
     } else {
         match CStr::from_ptr(event_data).to_str() {
@@ -635,11 +635,42 @@ pub unsafe extern "C" fn nova_core_send_event(
         }
     };
 
-    // TODO: Implement callback invocation
-    // This requires:
-    // 1. Looking up the callback in the extension's context
-    // 2. Invoking the JavaScript callback function
-    // 3. Returning the updated component tree
+    // Get extension host
+    let host = match &mut core.deno_host {
+        Some(h) => h,
+        None => {
+            return error_response("Extension host not initialized");
+        }
+    };
 
-    error_response("Event handling not yet implemented")
+    // Dispatch the event
+    match host.dispatch_event(&ext_id, cb_id, event) {
+        Ok(result_json) => {
+            // Parse the result to extract component if present
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_json) {
+                // Try to parse component if present
+                let component: Option<Component> = parsed
+                    .get("component")
+                    .and_then(|c| serde_json::from_value(c.clone()).ok());
+
+                let response = ExtensionExecuteResponse {
+                    success: parsed.get("success").and_then(|v| v.as_bool()).unwrap_or(false),
+                    component,
+                    error: parsed.get("error").and_then(|v| v.as_str()).map(String::from),
+                    should_close: parsed.get("should_close").and_then(|v| v.as_bool()).unwrap_or(false),
+                };
+
+                let json = serde_json::to_string(&response).unwrap_or_default();
+                CString::new(json)
+                    .map(|s| s.into_raw())
+                    .unwrap_or(ptr::null_mut())
+            } else {
+                // Return raw result if parsing fails
+                CString::new(result_json)
+                    .map(|s| s.into_raw())
+                    .unwrap_or(ptr::null_mut())
+            }
+        }
+        Err(e) => error_response(&format!("Event dispatch failed: {}", e)),
+    }
 }

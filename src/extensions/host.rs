@@ -436,6 +436,31 @@ impl ExtensionHost {
         // Rescan
         self.scan_extensions()
     }
+
+    /// Dispatch an event to an extension.
+    ///
+    /// This is used for interactive callbacks like action triggers, form submissions,
+    /// and search text changes.
+    ///
+    /// # Arguments
+    /// * `ext_id` - Extension identifier
+    /// * `event_id` - The event identifier (e.g., "copy:123", "submit")
+    /// * `event_data` - Optional JSON string containing event data
+    ///
+    /// # Returns
+    /// A JSON string with the dispatch result and optionally updated component tree.
+    pub fn dispatch_event(
+        &mut self,
+        ext_id: &ExtensionId,
+        event_id: &str,
+        event_data: Option<&str>,
+    ) -> ExtensionResult<String> {
+        // Get or load the isolate
+        let isolate = self.get_or_load_isolate(ext_id)?;
+
+        // Dispatch the event
+        isolate.dispatch_event(event_id, event_data)
+    }
 }
 
 #[cfg(test)]
