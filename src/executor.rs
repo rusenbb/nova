@@ -43,6 +43,13 @@ pub enum ExecutionAction {
         argument: Option<String>,
     },
 
+    /// Execute a Deno extension command
+    RunDenoCommand {
+        extension_id: String,
+        command_id: String,
+        argument: Option<String>,
+    },
+
     /// Copy text to clipboard with notification
     CopyToClipboard {
         content: String,
@@ -117,6 +124,19 @@ pub fn execute(
             } else {
                 ExecutionResult::Error("Extension manager not available".to_string())
             }
+        }
+
+        ExecutionAction::RunDenoCommand {
+            extension_id,
+            command_id,
+            argument: _,
+        } => {
+            // Deno extension execution is handled separately via ExtensionHost
+            // This is a placeholder - actual execution happens in ffi.rs
+            ExecutionResult::Error(format!(
+                "Deno command execution not yet implemented: {}:{}",
+                extension_id, command_id
+            ))
         }
 
         ExecutionAction::CopyToClipboard {

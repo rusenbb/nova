@@ -6,6 +6,7 @@
 pub mod config;
 pub mod core;
 pub mod executor;
+pub mod extensions;
 pub mod ffi;
 pub mod platform;
 pub mod services;

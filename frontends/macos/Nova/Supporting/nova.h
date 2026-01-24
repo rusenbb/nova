@@ -105,6 +105,61 @@ uint32_t nova_core_result_count(NovaCore* handle);
  */
 void nova_string_free(char* ptr);
 
+// ============================================================================
+// Extension Component Rendering API
+// ============================================================================
+
+/**
+ * Execute a Deno extension command and return the rendered component.
+ *
+ * @param handle A valid NovaCore handle
+ * @param extension_id Extension identifier (C string)
+ * @param command_id Command identifier (C string)
+ * @param argument Optional argument (C string, can be NULL)
+ *
+ * @return A JSON string containing the execution result with rendered component.
+ *         The caller must free this string using nova_string_free().
+ *
+ * JSON format:
+ * {
+ *   "success": true,
+ *   "component": { "type": "List", ... },
+ *   "shouldClose": false
+ * }
+ * or
+ * {
+ *   "success": false,
+ *   "error": "Error message"
+ * }
+ */
+char* nova_core_execute_extension(
+    NovaCore* handle,
+    const char* extension_id,
+    const char* command_id,
+    const char* argument
+);
+
+/**
+ * Send an event to an extension callback.
+ *
+ * Used for interactive components that respond to user actions like
+ * search text changes, selection changes, or action triggers.
+ *
+ * @param handle A valid NovaCore handle
+ * @param extension_id Extension identifier
+ * @param callback_id The callback ID to invoke
+ * @param event_data JSON-encoded event data
+ *
+ * @return A JSON string containing the updated component tree.
+ *         The caller must free this string using nova_string_free().
+ */
+char* nova_core_send_event(
+    NovaCore* handle,
+    const char* extension_id,
+    const char* callback_id,
+    const char* event_data
+);
+
 #ifdef __cplusplus
 }
 #endif

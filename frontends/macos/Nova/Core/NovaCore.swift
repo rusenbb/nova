@@ -94,4 +94,85 @@ final class NovaCore {
         guard let handle = handle else { return 0 }
         return nova_core_result_count(handle)
     }
+
+    // MARK: - Extension Execution
+
+    /// Execute an extension command and return the rendered component.
+    func executeExtension(extensionId: String, commandId: String, argument: String? = nil) -> ExtensionResponse? {
+        guard let handle = handle else { return nil }
+
+        let resultPtr: UnsafeMutablePointer<CChar>?
+        if let arg = argument {
+            resultPtr = nova_core_execute_extension(handle, extensionId, commandId, arg)
+        } else {
+            resultPtr = nova_core_execute_extension(handle, extensionId, commandId, nil)
+        }
+
+        guard let resultPtr = resultPtr else {
+            return nil
+        }
+
+        defer { nova_string_free(resultPtr) }
+
+        let jsonString = String(cString: resultPtr)
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            let response = try decoder.decode(ExtensionExecuteResponseInternal.self, from: jsonData)
+            return ExtensionResponse(
+                component: response.component,
+                error: response.error,
+                shouldClose: response.shouldClose
+            )
+        } catch {
+            print("[Nova] Failed to decode extension response: \(error)")
+            return nil
+        }
+    }
+
+    /// Send an event to an extension callback.
+    func sendEvent(extensionId: String, callbackId: String, payload: [String: Any]) -> ExtensionResponse? {
+        guard let handle = handle else { return nil }
+
+        // Serialize payload to JSON
+        guard let payloadData = try? JSONSerialization.data(withJSONObject: payload),
+              let payloadString = String(data: payloadData, encoding: .utf8) else {
+            return nil
+        }
+
+        guard let resultPtr = nova_core_send_event(handle, extensionId, callbackId, payloadString) else {
+            return nil
+        }
+
+        defer { nova_string_free(resultPtr) }
+
+        let jsonString = String(cString: resultPtr)
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            let response = try decoder.decode(ExtensionExecuteResponseInternal.self, from: jsonData)
+            return ExtensionResponse(
+                component: response.component,
+                error: response.error,
+                shouldClose: response.shouldClose
+            )
+        } catch {
+            print("[Nova] Failed to decode event response: \(error)")
+            return nil
+        }
+    }
+}
+
+// MARK: - Internal Response Type
+
+/// Internal response type for decoding FFI responses.
+private struct ExtensionExecuteResponseInternal: Codable {
+    let success: Bool
+    let error: String?
+    let component: ExtensionComponent?
+    let shouldClose: Bool
 }

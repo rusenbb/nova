@@ -12,6 +12,8 @@ use std::ptr;
 use crate::config::Config;
 use crate::core::{SearchEngine, SearchResult};
 use crate::executor::{execute, ExecutionAction, ExecutionResult};
+use crate::extensions::components::Component;
+use crate::extensions::{ExtensionHost, ExtensionHostConfig};
 use crate::platform::{self, AppEntry, Platform};
 use crate::services::clipboard::ClipboardHistory;
 use crate::services::custom_commands::CustomCommandsIndex;
@@ -29,6 +31,8 @@ pub struct NovaCore {
     custom_commands: CustomCommandsIndex,
     extension_manager: ExtensionManager,
     clipboard_history: ClipboardHistory,
+    /// Deno extension host (lazy-loaded).
+    deno_host: Option<ExtensionHost>,
     /// Cached search results for `nova_core_execute()`
     last_results: Vec<SearchResult>,
 }
@@ -74,6 +78,29 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
     // Initialize clipboard history
     let clipboard_history = ClipboardHistory::new(50);
 
+    // Initialize Deno extension host (if extensions directory exists)
+    let deno_host = {
+        let deno_extensions_dir = dirs::data_dir()
+            .map(|d| d.join("nova").join("deno-extensions"))
+            .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/deno-extensions"));
+
+        if deno_extensions_dir.exists() {
+            let config = ExtensionHostConfig {
+                extensions_dir: deno_extensions_dir,
+                ..Default::default()
+            };
+            match ExtensionHost::new(config) {
+                Ok(host) => Some(host),
+                Err(e) => {
+                    eprintln!("Warning: Failed to initialize Deno extension host: {}", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    };
+
     let core = Box::new(NovaCore {
         platform,
         config,
@@ -82,6 +109,7 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
         custom_commands,
         extension_manager,
         clipboard_history,
+        deno_host,
         last_results: Vec::new(),
     });
 
@@ -132,7 +160,7 @@ pub unsafe extern "C" fn nova_core_search(
     };
 
     // Perform search
-    let results = core.search_engine.search(
+    let mut results = core.search_engine.search(
         &core.apps,
         &core.custom_commands,
         &core.extension_manager,
@@ -140,6 +168,23 @@ pub unsafe extern "C" fn nova_core_search(
         query_str,
         max_results as usize,
     );
+
+    // Add Deno extension commands to results
+    if let Some(ref deno_host) = core.deno_host {
+        for cmd in deno_host.search_commands(query_str) {
+            results.push(SearchResult::DenoCommand {
+                extension_id: cmd.extension_id,
+                command_id: cmd.command_id,
+                title: cmd.title,
+                subtitle: cmd.subtitle,
+                icon: cmd.icon,
+                keywords: cmd.keywords,
+            });
+        }
+    }
+
+    // Limit total results
+    results.truncate(max_results as usize);
 
     // Cache results for execute
     core.last_results = results.clone();
@@ -364,6 +409,27 @@ fn result_to_action(result: &SearchResult) -> ExecutionAction {
             }
         }
 
+        SearchResult::DenoCommand {
+            extension_id,
+            command_id,
+            ..
+        } => ExecutionAction::RunDenoCommand {
+            extension_id: extension_id.clone(),
+            command_id: command_id.clone(),
+            argument: None,
+        },
+
+        SearchResult::DenoCommandWithArg {
+            extension_id,
+            command_id,
+            argument,
+            ..
+        } => ExecutionAction::RunDenoCommand {
+            extension_id: extension_id.clone(),
+            command_id: command_id.clone(),
+            argument: Some(argument.clone()),
+        },
+
         SearchResult::Calculation { result, .. } => ExecutionAction::CopyToClipboard {
             content: result.trim_start_matches("= ").to_string(),
             notification: "Calculation result copied".to_string(),
@@ -386,4 +452,194 @@ fn result_to_action(result: &SearchResult) -> ExecutionAction {
             notification: "Conversion result copied".to_string(),
         },
     }
+}
+
+// ============================================================================
+// Extension Execution FFI Functions
+// ============================================================================
+
+/// JSON response for extension command execution.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionExecuteResponse {
+    /// Whether the command succeeded.
+    success: bool,
+    /// Error message if failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    /// Rendered component tree (if any).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    component: Option<Component>,
+    /// Whether the window should close.
+    should_close: bool,
+}
+
+/// Execute a Deno extension command and return the rendered component.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier (C string)
+/// * `command_id` - Command identifier (C string)
+/// * `argument` - Optional argument (C string, can be null)
+///
+/// # Returns
+/// A JSON string containing the execution result with rendered component.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// All pointers must be valid or null (for argument).
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_execute_extension(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+    command_id: *const c_char,
+    argument: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || extension_id.is_null() || command_id.is_null() {
+        let response = ExtensionExecuteResponse {
+            success: false,
+            error: Some("Invalid handle or extension/command ID".to_string()),
+            component: None,
+            should_close: false,
+        };
+        let json = serde_json::to_string(&response).unwrap_or_default();
+        return CString::new(json)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut());
+    }
+
+    let core = &mut *handle;
+
+    // Convert C strings to Rust strings
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            return error_response("Invalid extension ID encoding");
+        }
+    };
+
+    let cmd_id = match CStr::from_ptr(command_id).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            return error_response("Invalid command ID encoding");
+        }
+    };
+
+    let arg = if argument.is_null() {
+        None
+    } else {
+        match CStr::from_ptr(argument).to_str() {
+            Ok(s) => Some(s.to_string()),
+            Err(_) => {
+                return error_response("Invalid argument encoding");
+            }
+        }
+    };
+
+    // Check if we have a Deno host
+    let deno_host = match core.deno_host.as_mut() {
+        Some(host) => host,
+        None => {
+            return error_response("Deno extension host not initialized");
+        }
+    };
+
+    // Execute the command
+    match deno_host.execute_command(&ext_id, &cmd_id, arg.as_deref()) {
+        Ok(_result_json) => {
+            // Parse the result to get component
+            // The isolate returns a JSON string with the execution result
+            let response = ExtensionExecuteResponse {
+                success: true,
+                error: None,
+                component: None, // TODO: Extract from isolate context
+                should_close: false,
+            };
+
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => error_response(&format!("Extension execution failed: {}", e)),
+    }
+}
+
+/// Helper function to create an error response.
+fn error_response(message: &str) -> *mut c_char {
+    let response = ExtensionExecuteResponse {
+        success: false,
+        error: Some(message.to_string()),
+        component: None,
+        should_close: false,
+    };
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Send an event to an extension callback.
+///
+/// This is used for interactive components that need to respond to user actions,
+/// like search text changes or action triggers.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+/// * `callback_id` - The callback ID to invoke
+/// * `event_data` - JSON-encoded event data
+///
+/// # Returns
+/// A JSON string containing the updated component tree.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_send_event(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+    callback_id: *const c_char,
+    event_data: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || extension_id.is_null() || callback_id.is_null() {
+        return error_response("Invalid handle or parameters");
+    }
+
+    let _core = &mut *handle;
+
+    // Convert C strings to Rust strings
+    let _ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return error_response("Invalid extension ID encoding");
+        }
+    };
+
+    let _cb_id = match CStr::from_ptr(callback_id).to_str() {
+        Ok(s) => s,
+        Err(_) => {
+            return error_response("Invalid callback ID encoding");
+        }
+    };
+
+    let _event = if event_data.is_null() {
+        None
+    } else {
+        match CStr::from_ptr(event_data).to_str() {
+            Ok(s) => Some(s),
+            Err(_) => {
+                return error_response("Invalid event data encoding");
+            }
+        }
+    };
+
+    // TODO: Implement callback invocation
+    // This requires:
+    // 1. Looking up the callback in the extension's context
+    // 2. Invoking the JavaScript callback function
+    // 3. Returning the updated component tree
+
+    error_response("Event handling not yet implemented")
 }

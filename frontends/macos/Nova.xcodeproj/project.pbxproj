@@ -7,20 +7,34 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0E9EB7AB51F8B08B8D1BECD3 /* ExtensionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A384FA1938E3649B96F00AC /* ExtensionListView.swift */; };
+		1203149B8AB55376BA23240F /* ActionPanelBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718EBC09017F76582F7FAC44 /* ActionPanelBar.swift */; };
 		394B200BB0C81D63DAECC86C /* NovaCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */; };
 		39B78C6B47BB05AA3528E09A /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E215C355E317E34FCC154A /* HotkeyManager.swift */; };
+		4BEE9A11960A02F605FBF959 /* ExtensionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */; };
 		5CE76EEEAE2B5DB873E1952D /* NovaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70504225547C20F1A0AED13 /* NovaApp.swift */; };
 		65D6E4D370A4F35B2AE1442E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7847CE4E571E0C7F94B2 /* AppDelegate.swift */; };
+		73D6FD2E3A8E1C9E64B649A4 /* ExtensionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94CF2918B52798633A458F8E /* ExtensionDetailView.swift */; };
 		79C5DC0DF55788E5C1C40F73 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7E0498CA534F2103389AB0 /* SearchPanel.swift */; };
+		A9A9DD400CE4C7F38EEA31A1 /* NavigationStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E5F460C855B0C34BC1C1D6 /* NavigationStack.swift */; };
+		AE53A62E7DB9D695535154D0 /* ExtensionListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */; };
+		BEC7F40D164EF4B47025EA1B /* ExtensionFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C42335811204C4A720F7040 /* ExtensionFormView.swift */; };
 		D1D87DC8DFCCBBF75FCD30E4 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A118E81AFEE39EC0338ED14C /* Models.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04E5F460C855B0C34BC1C1D6 /* NavigationStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationStack.swift; sourceTree = "<group>"; };
 		153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaCore.swift; sourceTree = "<group>"; };
+		1A384FA1938E3649B96F00AC /* ExtensionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionListView.swift; sourceTree = "<group>"; };
 		1B0726CC913A2D745F9ADBB9 /* Nova.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nova.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionModels.swift; sourceTree = "<group>"; };
 		2220BD3EE369F27A657C3F16 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		451F7847CE4E571E0C7F94B2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		624DECEC80E1095D4368F5C7 /* Nova-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Nova-Bridging-Header.h"; sourceTree = "<group>"; };
+		718EBC09017F76582F7FAC44 /* ActionPanelBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPanelBar.swift; sourceTree = "<group>"; };
+		7C42335811204C4A720F7040 /* ExtensionFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormView.swift; sourceTree = "<group>"; };
+		8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionListCell.swift; sourceTree = "<group>"; };
+		94CF2918B52798633A458F8E /* ExtensionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDetailView.swift; sourceTree = "<group>"; };
 		A118E81AFEE39EC0338ED14C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		C0E215C355E317E34FCC154A /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
 		C490C4A1E536E196090BF944 /* nova.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nova.h; sourceTree = "<group>"; };
@@ -52,6 +66,7 @@
 				451F7847CE4E571E0C7F94B2 /* AppDelegate.swift */,
 				D70504225547C20F1A0AED13 /* NovaApp.swift */,
 				C80C925FB638E23E74DE9DA4 /* Core */,
+				956D53A88F7DA7CCE66163CE /* Extension */,
 				898A687E891D60AC2338E6F1 /* Hotkey */,
 				2ACE6D4F70356740C88D5A0C /* Panel */,
 				9BACD46611AD46C9CA2C828B /* Supporting */,
@@ -75,6 +90,19 @@
 			path = Hotkey;
 			sourceTree = "<group>";
 		};
+		956D53A88F7DA7CCE66163CE /* Extension */ = {
+			isa = PBXGroup;
+			children = (
+				718EBC09017F76582F7FAC44 /* ActionPanelBar.swift */,
+				94CF2918B52798633A458F8E /* ExtensionDetailView.swift */,
+				7C42335811204C4A720F7040 /* ExtensionFormView.swift */,
+				8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */,
+				1A384FA1938E3649B96F00AC /* ExtensionListView.swift */,
+				04E5F460C855B0C34BC1C1D6 /* NavigationStack.swift */,
+			);
+			path = Extension;
+			sourceTree = "<group>";
+		};
 		9BACD46611AD46C9CA2C828B /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -89,6 +117,7 @@
 		C80C925FB638E23E74DE9DA4 /* Core */ = {
 			isa = PBXGroup;
 			children = (
+				1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */,
 				A118E81AFEE39EC0338ED14C /* Models.swift */,
 				153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */,
 			);
@@ -153,9 +182,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1203149B8AB55376BA23240F /* ActionPanelBar.swift in Sources */,
 				65D6E4D370A4F35B2AE1442E /* AppDelegate.swift in Sources */,
+				73D6FD2E3A8E1C9E64B649A4 /* ExtensionDetailView.swift in Sources */,
+				BEC7F40D164EF4B47025EA1B /* ExtensionFormView.swift in Sources */,
+				AE53A62E7DB9D695535154D0 /* ExtensionListCell.swift in Sources */,
+				0E9EB7AB51F8B08B8D1BECD3 /* ExtensionListView.swift in Sources */,
+				4BEE9A11960A02F605FBF959 /* ExtensionModels.swift in Sources */,
 				39B78C6B47BB05AA3528E09A /* HotkeyManager.swift in Sources */,
 				D1D87DC8DFCCBBF75FCD30E4 /* Models.swift in Sources */,
+				A9A9DD400CE4C7F38EEA31A1 /* NavigationStack.swift in Sources */,
 				5CE76EEEAE2B5DB873E1952D /* NovaApp.swift in Sources */,
 				394B200BB0C81D63DAECC86C /* NovaCore.swift in Sources */,
 				79C5DC0DF55788E5C1C40F73 /* SearchPanel.swift in Sources */,

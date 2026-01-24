@@ -81,6 +81,24 @@ pub enum SearchResult {
         argument: String,
     },
 
+    /// A Deno extension command (TypeScript/JavaScript)
+    DenoCommand {
+        extension_id: String,
+        command_id: String,
+        title: String,
+        subtitle: Option<String>,
+        icon: Option<String>,
+        keywords: Vec<String>,
+    },
+
+    /// A Deno extension command with an argument
+    DenoCommandWithArg {
+        extension_id: String,
+        command_id: String,
+        title: String,
+        argument: String,
+    },
+
     /// A calculator result
     Calculation { expression: String, result: String },
 
@@ -123,6 +141,8 @@ impl SearchResult {
             SearchResult::ScriptWithArgument { name, .. } => name,
             SearchResult::ExtensionCommand { command } => &command.name,
             SearchResult::ExtensionCommandWithArg { command, .. } => &command.name,
+            SearchResult::DenoCommand { title, .. } => title,
+            SearchResult::DenoCommandWithArg { title, .. } => title,
             SearchResult::Calculation { result, .. } => result,
             SearchResult::ClipboardItem { preview, .. } => preview,
             SearchResult::FileResult { name, .. } => name,
@@ -167,6 +187,8 @@ impl SearchResult {
                     Some(&command.description)
                 }
             }
+            SearchResult::DenoCommand { subtitle, .. } => subtitle.as_deref(),
+            SearchResult::DenoCommandWithArg { extension_id, .. } => Some(extension_id.as_str()),
             SearchResult::Calculation { expression, .. } => Some(expression),
             SearchResult::ClipboardItem { time_ago, .. } => Some(time_ago),
             SearchResult::FileResult { path, .. } => Some(path),
