@@ -13,11 +13,11 @@ export default defineConfig([
     minify: false,
     target: "es2022",
   },
-  // JSX runtime (separate to avoid DTS conflicts)
+  // JSX runtime (separate entry)
   {
     entry: ["src/jsx-runtime.ts"],
     format: ["esm", "cjs"],
-    dts: false, // Skip DTS for jsx-runtime to avoid conflict
+    dts: true,
     clean: false,
     sourcemap: true,
     splitting: false,
