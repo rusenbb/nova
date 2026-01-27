@@ -13,10 +13,12 @@
 
 pub mod search;
 
-// Re-export search types
+// Re-export search types (used by FFI layer)
+#[allow(unused_imports)]
 pub use search::{SearchEngine, SearchResult};
 
 // Re-export from services (these are already platform-agnostic)
+#[allow(unused_imports)]
 pub use crate::services::calculator;
 pub use crate::services::clipboard::{ClipboardEntry, ClipboardHistory};
 pub use crate::services::custom_commands::{CustomCommandsIndex, ScriptEntry, ScriptOutputMode};

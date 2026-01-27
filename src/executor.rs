@@ -6,8 +6,11 @@
 
 use std::path::PathBuf;
 
-use crate::platform::{AppEntry, Platform, SystemCommand};
+use crate::platform::{AppEntry, Platform};
 use crate::services::{ExtensionManager, LoadedCommand, OutputMode, ScriptOutputMode};
+
+// Re-export for use in main.rs GTK UI
+pub use crate::platform::SystemCommand;
 
 /// The action to perform when a result is executed.
 #[derive(Debug, Clone)]
