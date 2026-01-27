@@ -51,6 +51,7 @@ fn op_nova_storage_get(
     #[string] key: String,
 ) -> Result<Option<serde_json::Value>, AnyError> {
     let ctx = state.borrow::<NovaContext>();
+    ctx.check_permission("storage")?;
     ctx.storage.get(&key)
 }
 
@@ -62,6 +63,7 @@ fn op_nova_storage_set(
     #[serde] value: serde_json::Value,
 ) -> Result<(), AnyError> {
     let ctx = state.borrow_mut::<NovaContext>();
+    ctx.check_permission("storage")?;
     ctx.storage.set(&key, value)
 }
 
@@ -69,6 +71,7 @@ fn op_nova_storage_set(
 #[op2(fast)]
 fn op_nova_storage_remove(state: &mut OpState, #[string] key: String) -> Result<(), AnyError> {
     let ctx = state.borrow_mut::<NovaContext>();
+    ctx.check_permission("storage")?;
     ctx.storage.remove(&key)
 }
 
@@ -77,6 +80,7 @@ fn op_nova_storage_remove(state: &mut OpState, #[string] key: String) -> Result<
 #[serde]
 fn op_nova_storage_keys(state: &mut OpState) -> Result<Vec<String>, AnyError> {
     let ctx = state.borrow::<NovaContext>();
+    ctx.check_permission("storage")?;
     ctx.storage.keys()
 }
 
@@ -124,15 +128,8 @@ async fn op_nova_fetch(
         let state_ref = state.borrow();
         let ctx = state_ref.borrow::<NovaContext>();
 
-        // Check if domain is in allowed list
-        if !ctx.permissions.network.contains(&domain.to_string())
-            && !ctx.permissions.network.iter().any(|d| d == "*")
-        {
-            return Err(anyhow::anyhow!(
-                "Network access to '{}' not allowed. Add it to permissions.network in nova.toml",
-                domain
-            ));
-        }
+        // Check network permission for this domain
+        ctx.check_network(domain)?;
     }
 
     // Build the reqwest client and request
@@ -198,6 +195,7 @@ async fn op_nova_fetch(
 #[op2(fast)]
 fn op_nova_open_url(state: &mut OpState, #[string] url: String) -> Result<(), AnyError> {
     let ctx = state.borrow::<NovaContext>();
+    ctx.check_permission("system")?;
     ctx.platform
         .open_url(&url)
         .map_err(|e| anyhow::anyhow!("Failed to open URL: {}", e))
@@ -207,6 +205,7 @@ fn op_nova_open_url(state: &mut OpState, #[string] url: String) -> Result<(), An
 #[op2(fast)]
 fn op_nova_open_path(state: &mut OpState, #[string] path: String) -> Result<(), AnyError> {
     let ctx = state.borrow::<NovaContext>();
+    ctx.check_permission("system")?;
     ctx.platform
         .open_file(&path)
         .map_err(|e| anyhow::anyhow!("Failed to open path: {}", e))
@@ -220,7 +219,7 @@ fn op_nova_notify(
     #[string] body: String,
 ) -> Result<(), AnyError> {
     let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("notifications")?;
+    ctx.check_permission("system")?;
     ctx.platform
         .show_notification(&title, &body)
         .map_err(|e| anyhow::anyhow!("Failed to show notification: {}", e))

@@ -400,3 +400,48 @@ enum ExecutionResult {
     case error(String)
     case needsInput
 }
+
+// MARK: - Permission Models
+
+/// Response from `nova_core_check_permissions`
+struct PermissionQueryResponse: Codable {
+    let needsConsent: [PermissionInfo]
+    let error: String?
+}
+
+/// Information about a permission that needs user consent
+struct PermissionInfo: Codable, Identifiable {
+    let name: String
+    let description: String
+    let icon: String
+    let details: String?
+
+    var id: String { name }
+}
+
+/// Response from `nova_core_list_permissions`
+struct ExtensionPermissionsResponse: Codable {
+    let extensions: [ExtensionPermissionEntry]
+}
+
+/// An extension and its granted permissions
+struct ExtensionPermissionEntry: Codable, Identifiable {
+    let extensionId: String
+    let extensionTitle: String?
+    let permissions: [String]
+    let updatedAt: UInt64
+
+    var id: String { extensionId }
+
+    var displayName: String {
+        extensionTitle ?? extensionId
+    }
+
+    var formattedDate: String {
+        let date = Date(timeIntervalSince1970: TimeInterval(updatedAt))
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+}

@@ -22,6 +22,7 @@ mod host;
 pub mod ipc;
 mod isolate;
 mod manifest;
+pub mod permissions;
 pub mod storage;
 
 pub use components::Component;
@@ -32,6 +33,7 @@ pub use manifest::{
     CommandConfig, ExtensionManifest, ExtensionMeta, PermissionsConfig, PreferenceConfig,
     PreferenceType,
 };
+pub use permissions::{PermissionError, PermissionSet, PermissionStore};
 pub use storage::ExtensionStorage;
 
 /// Unique identifier for an extension.

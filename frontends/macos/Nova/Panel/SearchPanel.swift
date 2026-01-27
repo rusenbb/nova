@@ -26,6 +26,7 @@ final class SearchPanel: NSPanel {
     var onExecute: ((UInt32) -> ExecutionResult)?
     var onExecuteExtension: ((String, String, String?) -> ExtensionResponse?)?
     var onExtensionEvent: ((String, String, [String: Any]) -> ExtensionResponse?)?
+    var onCheckPermissions: ((String, String, @escaping (Bool) -> Void) -> Void)?
     var onHide: (() -> Void)?
 
     // MARK: - Initialization
@@ -248,6 +249,23 @@ final class SearchPanel: NSPanel {
     }
 
     private func executeExtensionCommand(extensionId: String, commandId: String, argument: String?) {
+        // Check permissions first
+        if let checkPermissions = onCheckPermissions {
+            checkPermissions(extensionId, commandId) { [weak self] allowed in
+                if allowed {
+                    self?.performExtensionExecution(extensionId: extensionId, commandId: commandId, argument: argument)
+                } else {
+                    print("[Nova] Permission denied for extension: \(extensionId)")
+                    NSSound.beep()
+                }
+            }
+        } else {
+            // No permission check callback - execute directly
+            performExtensionExecution(extensionId: extensionId, commandId: commandId, argument: argument)
+        }
+    }
+
+    private func performExtensionExecution(extensionId: String, commandId: String, argument: String?) {
         guard let response = onExecuteExtension?(extensionId, commandId, argument) else {
             NSSound.beep()
             return

@@ -21,6 +21,7 @@ use super::error::{ExtensionError, ExtensionResult};
 use super::ipc::NovaContext;
 use super::isolate::{ExtensionIsolate, IsolateState};
 use super::manifest::{CommandConfig, ExtensionManifest};
+use super::permissions::PermissionSet;
 use super::storage::ExtensionStorage;
 use super::{CommandId, ExtensionId};
 
@@ -170,11 +171,14 @@ impl ExtensionHost {
             .cloned()
             .unwrap_or_default();
 
+        // Convert manifest permissions to PermissionSet
+        let permissions = PermissionSet::from_manifest(&manifest.permissions);
+
         Ok(NovaContext::new(
             ext_id.clone(),
             platform,
             storage,
-            manifest.permissions.clone(),
+            permissions,
             preferences,
         ))
     }

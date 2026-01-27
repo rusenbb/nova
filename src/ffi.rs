@@ -85,7 +85,10 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
             .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/extensions"));
 
         println!("[Nova] Deno extensions dir: {:?}", extensions_dir);
-        println!("[Nova] Deno extensions dir exists: {}", extensions_dir.exists());
+        println!(
+            "[Nova] Deno extensions dir exists: {}",
+            extensions_dir.exists()
+        );
 
         if extensions_dir.exists() {
             let config = ExtensionHostConfig {
@@ -94,12 +97,18 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
             };
             match ExtensionHost::new(config) {
                 Ok(host) => {
-                    println!("[Nova] Deno host initialized: {} extensions, {} commands",
-                        host.extension_count(), host.command_count());
+                    println!(
+                        "[Nova] Deno host initialized: {} extensions, {} commands",
+                        host.extension_count(),
+                        host.command_count()
+                    );
                     Some(host)
                 }
                 Err(e) => {
-                    println!("[Nova] Warning: Failed to initialize Deno extension host: {}", e);
+                    println!(
+                        "[Nova] Warning: Failed to initialize Deno extension host: {}",
+                        e
+                    );
                     None
                 }
             }
@@ -246,7 +255,12 @@ pub unsafe extern "C" fn nova_core_execute(handle: *mut NovaCore, index: u32) ->
     };
 
     // Handle DenoCommand specially - execute via extension host
-    if let SearchResult::DenoCommand { extension_id, command_id, .. } = &result {
+    if let SearchResult::DenoCommand {
+        extension_id,
+        command_id,
+        ..
+    } = &result
+    {
         if let Some(ref mut deno_host) = core.deno_host {
             match deno_host.execute_command(extension_id, command_id, None) {
                 Ok(_) => {
@@ -730,4 +744,420 @@ pub unsafe extern "C" fn nova_core_send_event(
         }
         Err(e) => error_response(&format!("Event dispatch failed: {}", e)),
     }
+}
+
+// ============================================================================
+// Permission Management FFI Functions
+// ============================================================================
+
+use crate::extensions::permissions::{permission_description, permission_icon, PermissionStore};
+
+/// JSON response for permission queries.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PermissionQueryResponse {
+    /// Permissions that need user consent.
+    needs_consent: Vec<PermissionInfo>,
+}
+
+/// Information about a single permission.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PermissionInfo {
+    /// Permission name (e.g., "clipboard", "network").
+    name: String,
+    /// Human-readable description.
+    description: String,
+    /// Icon name (SF Symbols).
+    icon: String,
+    /// Additional details (e.g., allowed domains for network).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<String>,
+}
+
+/// JSON response for extension permissions list.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionPermissionsResponse {
+    /// List of extensions with their permissions.
+    extensions: Vec<ExtensionPermissionEntry>,
+}
+
+/// Permission entry for an extension.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExtensionPermissionEntry {
+    /// Extension ID.
+    extension_id: String,
+    /// Extension title.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    extension_title: Option<String>,
+    /// Granted permissions.
+    permissions: Vec<String>,
+    /// When permissions were last updated.
+    updated_at: u64,
+}
+
+/// Check if an extension needs permission consent before execution.
+///
+/// This should be called before executing an extension command.
+/// If the response contains permissions that need consent, show a dialog
+/// and call `nova_core_grant_permission` for each approved permission.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+///
+/// # Returns
+/// A JSON string containing permissions that need consent.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle and extension_id must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_check_permissions(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || extension_id.is_null() {
+        return permission_error_response("Invalid handle or extension ID");
+    }
+
+    let core = &*handle;
+
+    // Convert C string to Rust string
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => return permission_error_response("Invalid extension ID encoding"),
+    };
+
+    // Get the extension manifest to see what permissions it requests
+    let deno_host = match &core.deno_host {
+        Some(host) => host,
+        None => return permission_error_response("Extension host not initialized"),
+    };
+
+    let manifest = match deno_host.get_manifest(&ext_id.to_string()) {
+        Some(m) => m,
+        None => return permission_error_response(&format!("Extension '{}' not found", ext_id)),
+    };
+
+    // Load permission store
+    let store = PermissionStore::new();
+
+    // Convert manifest permissions to PermissionSet
+    let requested =
+        crate::extensions::permissions::PermissionSet::from_manifest(&manifest.permissions);
+
+    // Check which permissions need consent
+    let needs = store.needs_consent(ext_id, &requested);
+
+    // Build response
+    let mut needs_consent = Vec::new();
+
+    for perm_name in needs {
+        let mut details = None;
+
+        // Add details for certain permissions
+        if perm_name == "network" && !manifest.permissions.network.is_empty() {
+            details = Some(format!(
+                "Domains: {}",
+                manifest.permissions.network.join(", ")
+            ));
+        }
+
+        needs_consent.push(PermissionInfo {
+            name: perm_name.clone(),
+            description: permission_description(&perm_name).to_string(),
+            icon: permission_icon(&perm_name).to_string(),
+            details,
+        });
+    }
+
+    let response = PermissionQueryResponse { needs_consent };
+    let json = serde_json::to_string(&response).unwrap_or_default();
+
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Grant a permission to an extension.
+///
+/// Call this after the user approves a permission in the consent dialog.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+/// * `permission` - Permission name to grant (e.g., "clipboard", "network")
+///
+/// # Returns
+/// 1 on success, 0 on failure.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_grant_permission(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+    permission: *const c_char,
+) -> i32 {
+    if handle.is_null() || extension_id.is_null() || permission.is_null() {
+        return 0;
+    }
+
+    let core = &*handle;
+
+    // Convert C strings to Rust strings
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    let perm_name = match CStr::from_ptr(permission).to_str() {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    // Get the extension manifest
+    let deno_host = match &core.deno_host {
+        Some(host) => host,
+        None => return 0,
+    };
+
+    let manifest = match deno_host.get_manifest(&ext_id.to_string()) {
+        Some(m) => m,
+        None => return 0,
+    };
+
+    // Load existing grants
+    let mut store = PermissionStore::new();
+    let mut current = store.get_permissions(ext_id);
+
+    // Grant the specific permission
+    match perm_name {
+        "clipboard" => current.clipboard = true,
+        "network" => {
+            current.network.enabled = true;
+            current.network.allowed_domains = manifest.permissions.network.clone();
+        }
+        "filesystem" => current.filesystem.enabled = true,
+        "system" | "notifications" => current.system = true,
+        "storage" => current.storage = true,
+        "background" => current.background = true,
+        _ => return 0,
+    }
+
+    // Save
+    store.grant(ext_id, current, Some(manifest.extension.version.clone()));
+
+    match store.save() {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// Grant all requested permissions to an extension at once.
+///
+/// This is a convenience function for when the user approves all permissions.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+///
+/// # Returns
+/// 1 on success, 0 on failure.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_grant_all_permissions(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+) -> i32 {
+    if handle.is_null() || extension_id.is_null() {
+        return 0;
+    }
+
+    let core = &*handle;
+
+    // Convert C string to Rust string
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    // Get the extension manifest
+    let deno_host = match &core.deno_host {
+        Some(host) => host,
+        None => return 0,
+    };
+
+    let manifest = match deno_host.get_manifest(&ext_id.to_string()) {
+        Some(m) => m,
+        None => return 0,
+    };
+
+    // Convert manifest permissions to PermissionSet
+    let permissions =
+        crate::extensions::permissions::PermissionSet::from_manifest(&manifest.permissions);
+
+    // Save all permissions
+    let mut store = PermissionStore::new();
+    store.grant(
+        ext_id,
+        permissions,
+        Some(manifest.extension.version.clone()),
+    );
+
+    match store.save() {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// Revoke a permission from an extension.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+/// * `permission` - Permission name to revoke (e.g., "clipboard", "network")
+///
+/// # Returns
+/// 1 on success, 0 on failure.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_revoke_permission(
+    _handle: *mut NovaCore,
+    extension_id: *const c_char,
+    permission: *const c_char,
+) -> i32 {
+    if extension_id.is_null() || permission.is_null() {
+        return 0;
+    }
+
+    // Convert C strings to Rust strings
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    let perm_name = match CStr::from_ptr(permission).to_str() {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    let mut store = PermissionStore::new();
+    store.revoke_permission(ext_id, perm_name);
+
+    match store.save() {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// Revoke all permissions from an extension.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+///
+/// # Returns
+/// 1 on success, 0 on failure.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_revoke_all_permissions(
+    _handle: *mut NovaCore,
+    extension_id: *const c_char,
+) -> i32 {
+    if extension_id.is_null() {
+        return 0;
+    }
+
+    // Convert C string to Rust string
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => return 0,
+    };
+
+    let mut store = PermissionStore::new();
+    store.revoke(ext_id);
+
+    match store.save() {
+        Ok(()) => 1,
+        Err(_) => 0,
+    }
+}
+
+/// Get all extensions with their granted permissions.
+///
+/// Use this for the permissions management settings page.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string containing all extensions and their permissions.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_list_permissions(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return permission_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+
+    let store = PermissionStore::new();
+    let deno_host = &core.deno_host;
+
+    let mut extensions = Vec::new();
+
+    for (ext_id, grants) in store.all_grants() {
+        // Get extension title if available
+        let title = deno_host
+            .as_ref()
+            .and_then(|h| h.get_manifest(ext_id))
+            .map(|m| m.extension.title.clone());
+
+        // Get list of granted permissions
+        let permissions = grants
+            .permissions
+            .enabled_permissions()
+            .into_iter()
+            .map(String::from)
+            .collect();
+
+        extensions.push(ExtensionPermissionEntry {
+            extension_id: ext_id.clone(),
+            extension_title: title,
+            permissions,
+            updated_at: grants.updated_at,
+        });
+    }
+
+    let response = ExtensionPermissionsResponse { extensions };
+    let json = serde_json::to_string(&response).unwrap_or_default();
+
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Helper function to create a permission error response.
+fn permission_error_response(message: &str) -> *mut c_char {
+    let response = serde_json::json!({
+        "error": message,
+        "needsConsent": []
+    });
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
 }

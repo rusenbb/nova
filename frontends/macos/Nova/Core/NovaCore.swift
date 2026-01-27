@@ -168,6 +168,80 @@ final class NovaCore {
     }
 }
 
+// MARK: - Permission Management
+
+extension NovaCore {
+    /// Check if an extension needs permission consent.
+    func checkPermissions(extensionId: String) -> PermissionQueryResponse? {
+        guard let handle = handle else { return nil }
+
+        guard let resultPtr = nova_core_check_permissions(handle, extensionId) else {
+            return nil
+        }
+
+        defer { nova_string_free(resultPtr) }
+
+        let jsonString = String(cString: resultPtr)
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            return try decoder.decode(PermissionQueryResponse.self, from: jsonData)
+        } catch {
+            print("[Nova] Failed to decode permission response: \(error)")
+            return nil
+        }
+    }
+
+    /// Grant a single permission to an extension.
+    func grantPermission(extensionId: String, permission: String) -> Bool {
+        guard let handle = handle else { return false }
+        return nova_core_grant_permission(handle, extensionId, permission) == 1
+    }
+
+    /// Grant all requested permissions to an extension.
+    func grantAllPermissions(extensionId: String) -> Bool {
+        guard let handle = handle else { return false }
+        return nova_core_grant_all_permissions(handle, extensionId) == 1
+    }
+
+    /// Revoke a single permission from an extension.
+    func revokePermission(extensionId: String, permission: String) -> Bool {
+        guard let handle = handle else { return false }
+        return nova_core_revoke_permission(handle, extensionId, permission) == 1
+    }
+
+    /// Revoke all permissions from an extension.
+    func revokeAllPermissions(extensionId: String) -> Bool {
+        guard let handle = handle else { return false }
+        return nova_core_revoke_all_permissions(handle, extensionId) == 1
+    }
+
+    /// List all extensions with their permissions.
+    func listPermissions() -> ExtensionPermissionsResponse? {
+        guard let handle = handle else { return nil }
+
+        guard let resultPtr = nova_core_list_permissions(handle) else {
+            return nil
+        }
+
+        defer { nova_string_free(resultPtr) }
+
+        let jsonString = String(cString: resultPtr)
+        guard let jsonData = jsonString.data(using: .utf8) else {
+            return nil
+        }
+
+        do {
+            return try decoder.decode(ExtensionPermissionsResponse.self, from: jsonData)
+        } catch {
+            print("[Nova] Failed to decode permissions list: \(error)")
+            return nil
+        }
+    }
+}
+
 // MARK: - Internal Response Type
 
 /// Internal response type for decoding FFI responses.
@@ -177,3 +251,23 @@ private struct ExtensionExecuteResponseInternal: Codable {
     let component: ExtensionComponent?
     let shouldClose: Bool
 }
+
+// MARK: - FFI Function Declarations
+
+@_silgen_name("nova_core_check_permissions")
+func nova_core_check_permissions(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>?
+
+@_silgen_name("nova_core_grant_permission")
+func nova_core_grant_permission(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>, _ permission: UnsafePointer<CChar>) -> Int32
+
+@_silgen_name("nova_core_grant_all_permissions")
+func nova_core_grant_all_permissions(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>) -> Int32
+
+@_silgen_name("nova_core_revoke_permission")
+func nova_core_revoke_permission(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>, _ permission: UnsafePointer<CChar>) -> Int32
+
+@_silgen_name("nova_core_revoke_all_permissions")
+func nova_core_revoke_all_permissions(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>) -> Int32
+
+@_silgen_name("nova_core_list_permissions")
+func nova_core_list_permissions(_ handle: OpaquePointer) -> UnsafeMutablePointer<CChar>?

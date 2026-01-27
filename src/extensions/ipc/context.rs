@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::extensions::components::Component;
-use crate::extensions::manifest::PermissionsConfig;
+use crate::extensions::permissions::PermissionSet;
 use crate::extensions::storage::ExtensionStorage;
 use crate::platform::Platform;
 
@@ -25,7 +25,7 @@ pub struct NovaContext {
     pub storage: ExtensionStorage,
 
     /// Permissions granted to this extension.
-    pub permissions: PermissionsConfig,
+    pub permissions: PermissionSet,
 
     /// User-configured preferences for this extension.
     pub preferences: HashMap<String, serde_json::Value>,
@@ -46,7 +46,7 @@ impl NovaContext {
         extension_id: String,
         platform: Arc<dyn Platform>,
         storage: ExtensionStorage,
-        permissions: PermissionsConfig,
+        permissions: PermissionSet,
         preferences: HashMap<String, serde_json::Value>,
     ) -> Self {
         Self {
@@ -61,25 +61,36 @@ impl NovaContext {
         }
     }
 
-    /// Check if a permission is granted.
+    /// Check if a permission is granted, returning a clear error if not.
     pub fn check_permission(&self, permission: &str) -> Result<(), anyhow::Error> {
-        let allowed = match permission {
-            "clipboard" => self.permissions.clipboard,
-            "notifications" => self.permissions.notifications,
-            "storage" => self.permissions.storage,
-            "background" => self.permissions.background,
-            _ => false,
-        };
-
-        if allowed {
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!(
-                "Permission '{}' not granted for extension '{}'",
-                permission,
-                self.extension_id
-            ))
+        match permission {
+            "clipboard" => self.permissions.check_clipboard(),
+            "system" | "notifications" => self.permissions.check_system(),
+            "storage" => self.permissions.check_storage(),
+            "background" => self.permissions.check_background(),
+            _ => Err(crate::extensions::permissions::PermissionError::Denied {
+                permission: permission.to_string(),
+            }),
         }
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "Permission '{}' not granted for extension '{}': {}",
+                permission,
+                self.extension_id,
+                e
+            )
+        })
+    }
+
+    /// Check if network access to a domain is allowed.
+    pub fn check_network(&self, domain: &str) -> Result<(), anyhow::Error> {
+        self.permissions.check_network(domain).map_err(|e| {
+            anyhow::anyhow!(
+                "Network access denied for extension '{}': {}",
+                self.extension_id,
+                e
+            )
+        })
     }
 
     /// Set the rendered component.

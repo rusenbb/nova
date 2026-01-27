@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyManager: HotkeyManager?
     private var core: NovaCore?
     private var clipboardTimer: Timer?
+    private var permissionsWindowController: PermissionsManagerWindowController?
 
     // MARK: - Application Lifecycle
 
@@ -64,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let menu = NSMenu()
         menu.addItem(NSMenuItem(title: "Show Nova (Option+Space)", action: #selector(showPanel), keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
+        menu.addItem(NSMenuItem(title: "Manage Permissions...", action: #selector(showPermissions), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Reload", action: #selector(reloadConfig), keyEquivalent: "r"))
         menu.addItem(NSMenuItem.separator())
         menu.addItem(NSMenuItem(title: "Quit Nova", action: #selector(quitApp), keyEquivalent: "q"))
@@ -92,6 +94,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         searchPanel?.onExtensionEvent = { [weak self] extensionId, callbackId, payload in
             return self?.core?.sendEvent(extensionId: extensionId, callbackId: callbackId, payload: payload)
+        }
+
+        searchPanel?.onCheckPermissions = { [weak self] extensionId, commandId, completion in
+            guard let core = self?.core else {
+                completion(true) // Allow if no core
+                return
+            }
+
+            // Get extension title for the dialog
+            let title = extensionId // TODO: Get from manifest
+
+            core.showPermissionConsentIfNeeded(
+                extensionId: extensionId,
+                extensionTitle: title,
+                completion: completion
+            )
         }
 
         searchPanel?.onHide = {
@@ -157,6 +175,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func reloadConfig() {
         core?.reload()
         print("[Nova] Configuration reloaded")
+    }
+
+    @objc private func showPermissions() {
+        guard let core = core else { return }
+
+        if permissionsWindowController == nil {
+            permissionsWindowController = PermissionsManagerWindowController(core: core)
+        }
+        permissionsWindowController?.showWindow()
     }
 
     @objc private func quitApp() {

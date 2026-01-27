@@ -45,11 +45,7 @@ pub fn run_install(source: &str) -> Result<()> {
         }
         InstallSource::Url(url) => {
             // Clone from URL
-            println!(
-                "{} Cloning {}...",
-                style("→").cyan(),
-                style(url).bold()
-            );
+            println!("{} Cloning {}...", style("→").cyan(), style(url).bold());
             clone_repo(url)?
         }
     };
@@ -78,10 +74,7 @@ pub fn run_install(source: &str) -> Result<()> {
     // Build if needed
     let dist_index = work_dir.join("dist/index.js");
     if !dist_index.exists() {
-        println!(
-            "{} Building extension...",
-            style("→").cyan()
-        );
+        println!("{} Building extension...", style("→").cyan());
         build_extension(&work_dir)?;
         println!(
             "{} {}",
@@ -119,8 +112,16 @@ pub fn run_install(source: &str) -> Result<()> {
 
     // Print summary
     println!();
-    println!("{} {}", style("Extension:").bold(), manifest.extension.title);
-    println!("{} {}", style("Version:").bold(), manifest.extension.version);
+    println!(
+        "{} {}",
+        style("Extension:").bold(),
+        manifest.extension.title
+    );
+    println!(
+        "{} {}",
+        style("Version:").bold(),
+        manifest.extension.version
+    );
 
     if !manifest.commands.is_empty() {
         let cmd_names: Vec<_> = manifest.commands.iter().map(|c| c.name.as_str()).collect();
@@ -131,7 +132,10 @@ pub fn run_install(source: &str) -> Result<()> {
     println!("{}", style("Ready to use!").green().bold());
 
     // Cleanup temp directory if we cloned
-    if matches!(install_source, InstallSource::GitHub { .. } | InstallSource::Url(_)) {
+    if matches!(
+        install_source,
+        InstallSource::GitHub { .. } | InstallSource::Url(_)
+    ) {
         // work_dir is in temp, it will be cleaned up automatically
         // But we can explicitly remove it
         let _ = fs::remove_dir_all(&work_dir);
@@ -276,15 +280,13 @@ fn get_extensions_dir() -> Result<PathBuf> {
 /// Install extension files to destination.
 fn install_files(src: &Path, dest: &Path) -> Result<()> {
     // Copy nova.toml
-    fs::copy(src.join("nova.toml"), dest.join("nova.toml"))
-        .context("Failed to copy nova.toml")?;
+    fs::copy(src.join("nova.toml"), dest.join("nova.toml")).context("Failed to copy nova.toml")?;
 
     // Copy dist/index.js
     let dist_src = src.join("dist/index.js");
     if dist_src.exists() {
         fs::create_dir_all(dest.join("dist"))?;
-        fs::copy(&dist_src, dest.join("dist/index.js"))
-            .context("Failed to copy dist/index.js")?;
+        fs::copy(&dist_src, dest.join("dist/index.js")).context("Failed to copy dist/index.js")?;
     }
 
     // Copy assets if they exist
