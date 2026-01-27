@@ -1,0 +1,115 @@
+# Nova Theme - Design Tokens
+# This file is the single source of truth for UI styling across all platforms.
+# Both macOS (Swift) and Linux (GTK) frontends consume these values.
+
+[colors]
+# Primary backgrounds
+background = "#1a1a1a"           # Main window background
+background_secondary = "#252525" # Card/elevated surface background
+background_elevated = "#2d2d2d"  # Popover/dropdown background
+
+# Text colors
+foreground = "#ffffff"           # Primary text
+foreground_secondary = "#a0a0a0" # Secondary/subtitle text
+foreground_tertiary = "#666666"  # Placeholder/hint text
+
+# Accent colors
+accent = "#007AFF"               # Primary accent (SF Symbols blue)
+accent_hover = "#0056CC"         # Accent hover state
+
+# Semantic colors
+border = "#3d3d3d"               # Dividers and borders
+error = "#FF453A"                # Error states
+success = "#32D74B"              # Success states
+warning = "#FFD60A"              # Warning states
+
+# Selection
+selection = "#007AFF"            # Selected item accent
+selection_background = "#1e3a5f" # Selected item background (accent at 15% opacity equivalent)
+
+[spacing]
+xs = 4
+sm = 8
+md = 12
+lg = 16
+xl = 24
+xxl = 32
+
+[typography]
+# Font family - uses system font on each platform
+# macOS: SF Pro, Linux: system-ui
+font_family = "system-ui"
+
+# Font sizes in points
+font_size_xs = 10
+font_size_sm = 11
+font_size_md = 13
+font_size_lg = 16
+font_size_xl = 20
+font_size_xxl = 24
+
+# Font weights
+font_weight_normal = 400
+font_weight_medium = 500
+font_weight_semibold = 600
+font_weight_bold = 700
+
+[radii]
+# Corner radii in pixels
+xs = 2
+sm = 4
+md = 8
+lg = 12
+xl = 16
+
+[shadows]
+# Box shadows (CSS format for GTK, parsed for macOS)
+panel = "0 8px 32px rgba(0,0,0,0.5)"
+dropdown = "0 4px 16px rgba(0,0,0,0.4)"
+subtle = "0 2px 8px rgba(0,0,0,0.2)"
+
+[components]
+# Search panel
+panel_width = 620
+panel_height = 400
+panel_corner_radius = 12
+
+# Search field
+search_field_height = 48
+search_field_font_size = 24
+search_field_padding_horizontal = 16
+search_field_padding_vertical = 12
+
+# Result list
+list_item_height = 52
+list_item_padding_horizontal = 10
+list_item_padding_vertical = 8
+list_item_icon_size = 36
+list_item_corner_radius = 8
+list_item_spacing = 2
+
+# Extension views
+extension_item_height = 44
+extension_icon_size = 28
+
+# Icons
+icon_size_xs = 12
+icon_size_sm = 16
+icon_size_md = 20
+icon_size_lg = 24
+icon_size_xl = 32
+icon_size_xxl = 36
+
+# Dividers
+divider_thickness = 1
+divider_margin = 8
+
+[animation]
+# Duration in milliseconds
+duration_fast = 100
+duration_normal = 200
+duration_slow = 300
+
+# Easing (CSS timing function names)
+easing_default = "ease-out"
+easing_spring = "ease-in-out"

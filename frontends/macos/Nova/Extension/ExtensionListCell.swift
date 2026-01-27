@@ -3,12 +3,14 @@
 //  Nova
 //
 //  Table cell view for rendering List.Item with title, subtitle, icon, and accessories.
+//  Uses theme tokens from Theme.swift for consistent styling.
 //
 
 import Cocoa
 
 /// Table cell view for rendering a ListItem.
 final class ExtensionListCell: NSTableCellView {
+    private let theme = Theme.shared
     private let containerView: NSView
     private let iconView: NSImageView
     private let titleLabel: NSTextField
@@ -16,9 +18,11 @@ final class ExtensionListCell: NSTableCellView {
     private let accessoryStackView: NSStackView
 
     override init(frame frameRect: NSRect) {
+        let theme = Theme.shared
+
         containerView = NSView()
         containerView.wantsLayer = true
-        containerView.layer?.cornerRadius = 6
+        containerView.layer?.cornerRadius = theme.radiusMd
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         iconView = NSImageView()
@@ -26,20 +30,20 @@ final class ExtensionListCell: NSTableCellView {
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel = NSTextField(labelWithString: "")
-        titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        titleLabel.textColor = .labelColor
+        titleLabel.font = theme.font(size: .md, weight: .medium)
+        titleLabel.textColor = theme.foregroundColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         subtitleLabel = NSTextField(labelWithString: "")
-        subtitleLabel.font = .systemFont(ofSize: 11)
-        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.font = theme.font(size: .sm)
+        subtitleLabel.textColor = theme.foregroundSecondaryColor
         subtitleLabel.lineBreakMode = .byTruncatingTail
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         accessoryStackView = NSStackView()
         accessoryStackView.orientation = .horizontal
-        accessoryStackView.spacing = 8
+        accessoryStackView.spacing = theme.spacingSm
         accessoryStackView.alignment = .centerY
         accessoryStackView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -60,25 +64,25 @@ final class ExtensionListCell: NSTableCellView {
 
     private func setupConstraints() {
         NSLayoutConstraint.activate([
-            containerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            containerView.topAnchor.constraint(equalTo: topAnchor, constant: 2),
-            containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            containerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: theme.spacingSm),
+            containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -theme.spacingSm),
+            containerView.topAnchor.constraint(equalTo: topAnchor, constant: theme.listItemSpacing),
+            containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -theme.listItemSpacing),
 
-            iconView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 10),
+            iconView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: theme.listItemPaddingH),
             iconView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 28),
-            iconView.heightAnchor.constraint(equalToConstant: 28),
+            iconView.widthAnchor.constraint(equalToConstant: theme.extensionIconSize),
+            iconView.heightAnchor.constraint(equalToConstant: theme.extensionIconSize),
 
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 10),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: accessoryStackView.leadingAnchor, constant: -8),
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: theme.listItemPaddingH),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: accessoryStackView.leadingAnchor, constant: -theme.spacingSm),
             titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 7),
 
             subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 1),
 
-            accessoryStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
+            accessoryStackView.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -theme.listItemPaddingH),
             accessoryStackView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
         ])
     }
@@ -88,13 +92,13 @@ final class ExtensionListCell: NSTableCellView {
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet {
             if backgroundStyle == .emphasized {
-                containerView.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.15).cgColor
-                titleLabel.textColor = .labelColor
-                subtitleLabel.textColor = .secondaryLabelColor
+                containerView.layer?.backgroundColor = theme.selectionBackgroundColor.cgColor
+                titleLabel.textColor = theme.foregroundColor
+                subtitleLabel.textColor = theme.foregroundSecondaryColor
             } else {
                 containerView.layer?.backgroundColor = nil
-                titleLabel.textColor = .labelColor
-                subtitleLabel.textColor = .secondaryLabelColor
+                titleLabel.textColor = theme.foregroundColor
+                subtitleLabel.textColor = theme.foregroundSecondaryColor
             }
         }
     }
@@ -215,26 +219,26 @@ final class ExtensionListCell: NSTableCellView {
         switch accessory {
         case .text(let text):
             let label = NSTextField(labelWithString: text)
-            label.font = .systemFont(ofSize: 11)
-            label.textColor = .tertiaryLabelColor
+            label.font = theme.font(size: .sm)
+            label.textColor = theme.foregroundTertiaryColor
             return label
 
         case .icon(let icon, let text):
             let stack = NSStackView()
             stack.orientation = .horizontal
-            stack.spacing = 4
+            stack.spacing = theme.spacingXs
 
             let imageView = NSImageView()
             imageView.image = loadIcon(from: icon)
             imageView.imageScaling = .scaleProportionallyUpOrDown
-            imageView.widthAnchor.constraint(equalToConstant: 14).isActive = true
-            imageView.heightAnchor.constraint(equalToConstant: 14).isActive = true
+            imageView.widthAnchor.constraint(equalToConstant: theme.iconSizeSm).isActive = true
+            imageView.heightAnchor.constraint(equalToConstant: theme.iconSizeSm).isActive = true
             stack.addArrangedSubview(imageView)
 
             if let text = text {
                 let label = NSTextField(labelWithString: text)
-                label.font = .systemFont(ofSize: 11)
-                label.textColor = .tertiaryLabelColor
+                label.font = theme.font(size: .sm)
+                label.textColor = theme.foregroundTertiaryColor
                 stack.addArrangedSubview(label)
             }
 
@@ -245,8 +249,8 @@ final class ExtensionListCell: NSTableCellView {
 
         case .date(let dateString, let format):
             let label = NSTextField(labelWithString: formatDate(dateString, format: format))
-            label.font = .systemFont(ofSize: 11)
-            label.textColor = .tertiaryLabelColor
+            label.font = theme.font(size: .sm)
+            label.textColor = theme.foregroundTertiaryColor
             return label
         }
     }
@@ -254,12 +258,12 @@ final class ExtensionListCell: NSTableCellView {
     private func createTagView(value: String, color: String?) -> NSView {
         let container = NSView()
         container.wantsLayer = true
-        container.layer?.cornerRadius = 4
-        container.layer?.backgroundColor = (colorFromHex(color) ?? .controlAccentColor).withAlphaComponent(0.2).cgColor
+        container.layer?.cornerRadius = theme.radiusSm
+        container.layer?.backgroundColor = (colorFromHex(color) ?? theme.accentColor).withAlphaComponent(0.2).cgColor
 
         let label = NSTextField(labelWithString: value)
-        label.font = .systemFont(ofSize: 10, weight: .medium)
-        label.textColor = colorFromHex(color) ?? .controlAccentColor
+        label.font = theme.font(size: .xs, weight: .medium)
+        label.textColor = colorFromHex(color) ?? theme.accentColor
         label.translatesAutoresizingMaskIntoConstraints = false
 
         container.addSubview(label)

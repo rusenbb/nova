@@ -85,7 +85,10 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
             .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/extensions"));
 
         println!("[Nova] Deno extensions dir: {:?}", extensions_dir);
-        println!("[Nova] Deno extensions dir exists: {}", extensions_dir.exists());
+        println!(
+            "[Nova] Deno extensions dir exists: {}",
+            extensions_dir.exists()
+        );
 
         if extensions_dir.exists() {
             let config = ExtensionHostConfig {
@@ -94,12 +97,18 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
             };
             match ExtensionHost::new(config) {
                 Ok(host) => {
-                    println!("[Nova] Deno host initialized: {} extensions, {} commands",
-                        host.extension_count(), host.command_count());
+                    println!(
+                        "[Nova] Deno host initialized: {} extensions, {} commands",
+                        host.extension_count(),
+                        host.command_count()
+                    );
                     Some(host)
                 }
                 Err(e) => {
-                    println!("[Nova] Warning: Failed to initialize Deno extension host: {}", e);
+                    println!(
+                        "[Nova] Warning: Failed to initialize Deno extension host: {}",
+                        e
+                    );
                     None
                 }
             }
@@ -246,7 +255,12 @@ pub unsafe extern "C" fn nova_core_execute(handle: *mut NovaCore, index: u32) ->
     };
 
     // Handle DenoCommand specially - execute via extension host
-    if let SearchResult::DenoCommand { extension_id, command_id, .. } = &result {
+    if let SearchResult::DenoCommand {
+        extension_id,
+        command_id,
+        ..
+    } = &result
+    {
         if let Some(ref mut deno_host) = core.deno_host {
             match deno_host.execute_command(extension_id, command_id, None) {
                 Ok(_) => {

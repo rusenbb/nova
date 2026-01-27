@@ -3,11 +3,15 @@
 //  Nova
 //
 //  NSPanel-based search interface that can appear over fullscreen apps.
+//  Uses theme tokens from Theme.swift for consistent styling.
 //
 
 import Cocoa
 
 final class SearchPanel: NSPanel {
+    // Theme reference for styling
+    private let theme = Theme.shared
+
     private let searchField: NSTextField
     private let resultsTableView: NSTableView
     private let scrollView: NSScrollView
@@ -36,13 +40,17 @@ final class SearchPanel: NSPanel {
         backing backingStoreType: NSWindow.BackingStoreType,
         defer flag: Bool
     ) {
+        // Get theme values
+        let theme = Theme.shared
+
         // Create search field
         searchField = NSTextField()
         searchField.placeholderString = "Search apps, commands, and more..."
-        searchField.font = .systemFont(ofSize: 24, weight: .light)
+        searchField.font = .systemFont(ofSize: theme.searchFieldFontSize, weight: .light)
         searchField.isBordered = false
         searchField.focusRingType = .none
         searchField.drawsBackground = false
+        searchField.textColor = theme.foregroundColor
         searchField.translatesAutoresizingMaskIntoConstraints = false
 
         // Create table view for results
@@ -50,8 +58,8 @@ final class SearchPanel: NSPanel {
         resultsTableView.headerView = nil
         resultsTableView.backgroundColor = .clear
         resultsTableView.selectionHighlightStyle = .sourceList
-        resultsTableView.rowHeight = 52
-        resultsTableView.intercellSpacing = NSSize(width: 0, height: 2)
+        resultsTableView.rowHeight = theme.listItemHeight
+        resultsTableView.intercellSpacing = NSSize(width: 0, height: theme.listItemSpacing)
         resultsTableView.translatesAutoresizingMaskIntoConstraints = false
         resultsTableView.style = .plain
         resultsTableView.usesAlternatingRowBackgroundColors = false
@@ -103,7 +111,7 @@ final class SearchPanel: NSPanel {
         visualEffect.state = .active
         visualEffect.blendingMode = .behindWindow
         visualEffect.wantsLayer = true
-        visualEffect.layer?.cornerRadius = 12
+        visualEffect.layer?.cornerRadius = theme.panelCornerRadius
         visualEffect.layer?.masksToBounds = true
         visualEffect.translatesAutoresizingMaskIntoConstraints = false
 
@@ -123,22 +131,22 @@ final class SearchPanel: NSPanel {
         contentView.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            // Search field
-            searchField.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
-            searchField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            searchField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            searchField.heightAnchor.constraint(equalToConstant: 36),
+            // Search field - use theme spacing
+            searchField.topAnchor.constraint(equalTo: contentView.topAnchor, constant: theme.searchFieldPaddingV),
+            searchField.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: theme.searchFieldPaddingH),
+            searchField.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -theme.searchFieldPaddingH),
+            searchField.heightAnchor.constraint(equalToConstant: theme.searchFieldHeight - theme.searchFieldPaddingV * 2),
 
-            // Divider
-            divider.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: 12),
-            divider.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 8),
-            divider.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -8),
+            // Divider - use theme spacing
+            divider.topAnchor.constraint(equalTo: searchField.bottomAnchor, constant: theme.spacingMd),
+            divider.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: theme.dividerMargin),
+            divider.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -theme.dividerMargin),
 
-            // Scroll view
-            scrollView.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 8),
+            // Scroll view - use theme spacing
+            scrollView.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: theme.spacingSm),
             scrollView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            scrollView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -theme.spacingSm),
         ])
     }
 
@@ -151,11 +159,11 @@ final class SearchPanel: NSPanel {
     // MARK: - Public API
 
     func show() {
-        // Center on screen
+        // Center on screen using theme dimensions
         if let screen = NSScreen.main {
             let screenFrame = screen.frame
-            let panelWidth: CGFloat = 620
-            let panelHeight: CGFloat = 400
+            let panelWidth = theme.panelWidth
+            let panelHeight = theme.panelHeight
 
             let x = (screenFrame.width - panelWidth) / 2 + screenFrame.origin.x
             let y = (screenFrame.height - panelHeight) / 2 + screenFrame.origin.y + 100 // Slightly above center
@@ -416,6 +424,7 @@ extension SearchPanel: NSTableViewDelegate {
 // MARK: - Result Cell View
 
 final class ResultCellView: NSTableCellView {
+    private let theme = Theme.shared
     private let containerView: NSView
     private let iconView: NSImageView
     private let titleLabel: NSTextField
@@ -423,9 +432,11 @@ final class ResultCellView: NSTableCellView {
     private let shortcutLabel: NSTextField
 
     override init(frame frameRect: NSRect) {
+        let theme = Theme.shared
+
         containerView = NSView()
         containerView.wantsLayer = true
-        containerView.layer?.cornerRadius = 8
+        containerView.layer?.cornerRadius = theme.listItemCornerRadius
         containerView.translatesAutoresizingMaskIntoConstraints = false
 
         iconView = NSImageView()
@@ -433,20 +444,20 @@ final class ResultCellView: NSTableCellView {
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
         titleLabel = NSTextField(labelWithString: "")
-        titleLabel.font = .systemFont(ofSize: 14, weight: .medium)
-        titleLabel.textColor = .labelColor
+        titleLabel.font = theme.font(size: .md, weight: .medium)
+        titleLabel.textColor = theme.foregroundColor
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         subtitleLabel = NSTextField(labelWithString: "")
-        subtitleLabel.font = .systemFont(ofSize: 12)
-        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.font = theme.font(size: .sm)
+        subtitleLabel.textColor = theme.foregroundSecondaryColor
         subtitleLabel.lineBreakMode = .byTruncatingTail
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         shortcutLabel = NSTextField(labelWithString: "")
-        shortcutLabel.font = .systemFont(ofSize: 11, weight: .medium)
-        shortcutLabel.textColor = .tertiaryLabelColor
+        shortcutLabel.font = theme.font(size: .sm, weight: .medium)
+        shortcutLabel.textColor = theme.foregroundTertiaryColor
         shortcutLabel.alignment = .right
         shortcutLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -459,25 +470,25 @@ final class ResultCellView: NSTableCellView {
         containerView.addSubview(shortcutLabel)
 
         NSLayoutConstraint.activate([
-            containerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8),
-            containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-            containerView.topAnchor.constraint(equalTo: topAnchor, constant: 2),
-            containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
+            containerView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: theme.spacingSm),
+            containerView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -theme.spacingSm),
+            containerView.topAnchor.constraint(equalTo: topAnchor, constant: theme.listItemSpacing),
+            containerView.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -theme.listItemSpacing),
 
-            iconView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: 10),
+            iconView.leadingAnchor.constraint(equalTo: containerView.leadingAnchor, constant: theme.listItemPaddingH),
             iconView.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 36),
-            iconView.heightAnchor.constraint(equalToConstant: 36),
+            iconView.widthAnchor.constraint(equalToConstant: theme.listItemIconSize),
+            iconView.heightAnchor.constraint(equalToConstant: theme.listItemIconSize),
 
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 12),
-            titleLabel.trailingAnchor.constraint(equalTo: shortcutLabel.leadingAnchor, constant: -8),
-            titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: theme.spacingMd),
+            titleLabel.trailingAnchor.constraint(equalTo: shortcutLabel.leadingAnchor, constant: -theme.spacingSm),
+            titleLabel.topAnchor.constraint(equalTo: containerView.topAnchor, constant: theme.listItemPaddingV),
 
             subtitleLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
             subtitleLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: theme.radiusXs),
 
-            shortcutLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -10),
+            shortcutLabel.trailingAnchor.constraint(equalTo: containerView.trailingAnchor, constant: -theme.listItemPaddingH),
             shortcutLabel.centerYAnchor.constraint(equalTo: containerView.centerYAnchor),
             shortcutLabel.widthAnchor.constraint(equalToConstant: 40),
         ])
@@ -485,15 +496,15 @@ final class ResultCellView: NSTableCellView {
 
     override var backgroundStyle: NSView.BackgroundStyle {
         didSet {
-            // Update colors based on selection state
+            // Update colors based on selection state using theme colors
             if backgroundStyle == .emphasized {
-                containerView.layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.2).cgColor
-                titleLabel.textColor = .labelColor
-                subtitleLabel.textColor = .secondaryLabelColor
+                containerView.layer?.backgroundColor = theme.selectionBackgroundColor.cgColor
+                titleLabel.textColor = theme.foregroundColor
+                subtitleLabel.textColor = theme.foregroundSecondaryColor
             } else {
                 containerView.layer?.backgroundColor = nil
-                titleLabel.textColor = .labelColor
-                subtitleLabel.textColor = .secondaryLabelColor
+                titleLabel.textColor = theme.foregroundColor
+                subtitleLabel.textColor = theme.foregroundSecondaryColor
             }
         }
     }
