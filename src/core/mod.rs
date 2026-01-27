@@ -13,20 +13,28 @@
 
 pub mod search;
 
-// Re-export search types (used by FFI layer)
+// Re-exports used by FFI layer and native frontends.
+// Some may appear unused when compiling with gtk-ui feature since
+// GTK main.rs defines its own local types.
 #[allow(unused_imports)]
 pub use search::{SearchEngine, SearchResult};
-
-// Re-export from services (these are already platform-agnostic)
 #[allow(unused_imports)]
 pub use crate::services::calculator;
+#[allow(unused_imports)]
 pub use crate::services::clipboard::{ClipboardEntry, ClipboardHistory};
+#[allow(unused_imports)]
 pub use crate::services::custom_commands::{CustomCommandsIndex, ScriptEntry, ScriptOutputMode};
+#[allow(unused_imports)]
 pub use crate::services::emoji::{self, Emoji};
+#[allow(unused_imports)]
 pub use crate::services::extension::{Extension, ExtensionIndex, ExtensionKind};
+#[allow(unused_imports)]
 pub use crate::services::extensions::{
     get_extensions_dir, ExtensionManager, LoadedCommand, OutputMode,
 };
+#[allow(unused_imports)]
 pub use crate::services::file_search::{self, FileEntry};
+#[allow(unused_imports)]
 pub use crate::services::format;
+#[allow(unused_imports)]
 pub use crate::services::units::{self, Conversion};
