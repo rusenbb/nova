@@ -21,8 +21,7 @@ use super::types::{FetchMethod, FetchRequest, FetchResponse};
 /// Copy text to the system clipboard.
 #[op2(fast)]
 fn op_nova_clipboard_copy(state: &mut OpState, #[string] text: String) -> Result<(), AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("clipboard")?;
+    let ctx = nova_with_permission!(state, "clipboard");
     ctx.platform
         .clipboard_write(&text)
         .map_err(|e| anyhow::anyhow!("Clipboard write failed: {}", e))
@@ -32,8 +31,7 @@ fn op_nova_clipboard_copy(state: &mut OpState, #[string] text: String) -> Result
 #[op2]
 #[string]
 fn op_nova_clipboard_read(state: &mut OpState) -> Result<String, AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("clipboard")?;
+    let ctx = nova_with_permission!(state, "clipboard");
     ctx.platform
         .clipboard_read()
         .ok_or_else(|| anyhow::anyhow!("Clipboard is empty or unavailable"))
@@ -50,8 +48,7 @@ fn op_nova_storage_get(
     state: &mut OpState,
     #[string] key: String,
 ) -> Result<Option<serde_json::Value>, AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("storage")?;
+    let ctx = nova_with_permission!(state, "storage");
     ctx.storage.get(&key)
 }
 
@@ -62,16 +59,14 @@ fn op_nova_storage_set(
     #[string] key: String,
     #[serde] value: serde_json::Value,
 ) -> Result<(), AnyError> {
-    let ctx = state.borrow_mut::<NovaContext>();
-    ctx.check_permission("storage")?;
+    let ctx = nova_with_permission_mut!(state, "storage");
     ctx.storage.set(&key, value)
 }
 
 /// Remove a key from extension storage.
 #[op2(fast)]
 fn op_nova_storage_remove(state: &mut OpState, #[string] key: String) -> Result<(), AnyError> {
-    let ctx = state.borrow_mut::<NovaContext>();
-    ctx.check_permission("storage")?;
+    let ctx = nova_with_permission_mut!(state, "storage");
     ctx.storage.remove(&key)
 }
 
@@ -79,8 +74,7 @@ fn op_nova_storage_remove(state: &mut OpState, #[string] key: String) -> Result<
 #[op2]
 #[serde]
 fn op_nova_storage_keys(state: &mut OpState) -> Result<Vec<String>, AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("storage")?;
+    let ctx = nova_with_permission!(state, "storage");
     ctx.storage.keys()
 }
 
@@ -95,7 +89,7 @@ fn op_nova_preferences_get(
     state: &mut OpState,
     #[string] key: String,
 ) -> Result<Option<serde_json::Value>, AnyError> {
-    let ctx = state.borrow::<NovaContext>();
+    let ctx = nova_ctx!(state);
     Ok(ctx.preferences.get(&key).cloned())
 }
 
@@ -103,7 +97,7 @@ fn op_nova_preferences_get(
 #[op2]
 #[serde]
 fn op_nova_preferences_all(state: &mut OpState) -> Result<serde_json::Value, AnyError> {
-    let ctx = state.borrow::<NovaContext>();
+    let ctx = nova_ctx!(state);
     Ok(serde_json::to_value(&ctx.preferences)?)
 }
 
@@ -194,8 +188,7 @@ async fn op_nova_fetch(
 /// Open a URL in the default browser.
 #[op2(fast)]
 fn op_nova_open_url(state: &mut OpState, #[string] url: String) -> Result<(), AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("system")?;
+    let ctx = nova_with_permission!(state, "system");
     ctx.platform
         .open_url(&url)
         .map_err(|e| anyhow::anyhow!("Failed to open URL: {}", e))
@@ -204,8 +197,7 @@ fn op_nova_open_url(state: &mut OpState, #[string] url: String) -> Result<(), An
 /// Open a file or directory in the default application.
 #[op2(fast)]
 fn op_nova_open_path(state: &mut OpState, #[string] path: String) -> Result<(), AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("system")?;
+    let ctx = nova_with_permission!(state, "system");
     ctx.platform
         .open_file(&path)
         .map_err(|e| anyhow::anyhow!("Failed to open path: {}", e))
@@ -218,8 +210,7 @@ fn op_nova_notify(
     #[string] title: String,
     #[string] body: String,
 ) -> Result<(), AnyError> {
-    let ctx = state.borrow::<NovaContext>();
-    ctx.check_permission("system")?;
+    let ctx = nova_with_permission!(state, "system");
     ctx.platform
         .show_notification(&title, &body)
         .map_err(|e| anyhow::anyhow!("Failed to show notification: {}", e))
@@ -228,7 +219,7 @@ fn op_nova_notify(
 /// Request the Nova window to close.
 #[op2(fast)]
 fn op_nova_close_window(state: &mut OpState) -> Result<(), AnyError> {
-    let ctx = state.borrow_mut::<NovaContext>();
+    let ctx = nova_ctx_mut!(state);
     ctx.should_close = true;
     Ok(())
 }
@@ -248,7 +239,7 @@ fn op_nova_render(state: &mut OpState, #[serde] component: Component) -> Result<
         .validate()
         .map_err(|e| anyhow::anyhow!("Component validation failed: {}", e))?;
 
-    let ctx = state.borrow_mut::<NovaContext>();
+    let ctx = nova_ctx_mut!(state);
     ctx.set_rendered_component(component);
     Ok(())
 }
@@ -268,7 +259,7 @@ fn op_nova_navigation_push(
         .validate()
         .map_err(|e| anyhow::anyhow!("Component validation failed: {}", e))?;
 
-    let ctx = state.borrow_mut::<NovaContext>();
+    let ctx = nova_ctx_mut!(state);
     ctx.navigation_stack.push(component);
     Ok(())
 }
@@ -276,14 +267,14 @@ fn op_nova_navigation_push(
 /// Pop the top view from the navigation stack.
 #[op2(fast)]
 fn op_nova_navigation_pop(state: &mut OpState) -> Result<bool, AnyError> {
-    let ctx = state.borrow_mut::<NovaContext>();
+    let ctx = nova_ctx_mut!(state);
     Ok(ctx.navigation_stack.pop().is_some())
 }
 
 /// Get the current navigation stack depth.
 #[op2(fast)]
 fn op_nova_navigation_depth(state: &mut OpState) -> Result<u32, AnyError> {
-    let ctx = state.borrow::<NovaContext>();
+    let ctx = nova_ctx!(state);
     Ok(ctx.navigation_stack.len() as u32)
 }
 
