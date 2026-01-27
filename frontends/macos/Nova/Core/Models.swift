@@ -25,6 +25,8 @@ enum SearchResult: Codable {
     case scriptWithArgument(ScriptWithArgumentData)
     case extensionCommand(ExtensionCommandData)
     case extensionCommandWithArg(ExtensionCommandWithArgData)
+    case denoCommand(DenoCommandData)
+    case denoCommandWithArg(DenoCommandWithArgData)
     case calculation(CalculationData)
     case clipboardItem(ClipboardItemData)
     case fileResult(FileResultData)
@@ -59,6 +61,10 @@ enum SearchResult: Codable {
             self = .extensionCommand(try container.decode(ExtensionCommandData.self, forKey: .data))
         case "ExtensionCommandWithArg":
             self = .extensionCommandWithArg(try container.decode(ExtensionCommandWithArgData.self, forKey: .data))
+        case "DenoCommand":
+            self = .denoCommand(try container.decode(DenoCommandData.self, forKey: .data))
+        case "DenoCommandWithArg":
+            self = .denoCommandWithArg(try container.decode(DenoCommandWithArgData.self, forKey: .data))
         case "Calculation":
             self = .calculation(try container.decode(CalculationData.self, forKey: .data))
         case "ClipboardItem":
@@ -104,6 +110,12 @@ enum SearchResult: Codable {
         case .extensionCommandWithArg(let data):
             try container.encode("ExtensionCommandWithArg", forKey: .type)
             try container.encode(data, forKey: .data)
+        case .denoCommand(let data):
+            try container.encode("DenoCommand", forKey: .type)
+            try container.encode(data, forKey: .data)
+        case .denoCommandWithArg(let data):
+            try container.encode("DenoCommandWithArg", forKey: .type)
+            try container.encode(data, forKey: .data)
         case .calculation(let data):
             try container.encode("Calculation", forKey: .type)
             try container.encode(data, forKey: .data)
@@ -135,6 +147,8 @@ enum SearchResult: Codable {
         case .scriptWithArgument(let data): return data.name
         case .extensionCommand(let data): return data.command.name
         case .extensionCommandWithArg(let data): return data.command.name
+        case .denoCommand(let data): return data.title
+        case .denoCommandWithArg(let data): return data.title
         case .calculation(let data): return data.result
         case .clipboardItem(let data): return data.preview
         case .fileResult(let data): return data.name
@@ -154,6 +168,8 @@ enum SearchResult: Codable {
         case .scriptWithArgument(let data): return data.description
         case .extensionCommand(let data): return data.command.description
         case .extensionCommandWithArg(let data): return data.command.description
+        case .denoCommand(let data): return data.subtitle ?? "Extension"
+        case .denoCommandWithArg(let data): return data.extensionId
         case .calculation(let data): return data.expression
         case .clipboardItem(_): return "Clipboard"
         case .fileResult(let data): return data.path
@@ -173,6 +189,8 @@ enum SearchResult: Codable {
         case .scriptWithArgument(let data): return data.icon
         case .extensionCommand(_): return nil
         case .extensionCommandWithArg(_): return nil
+        case .denoCommand(let data): return data.icon
+        case .denoCommandWithArg(_): return nil
         case .calculation(_): return nil
         case .clipboardItem(_): return nil
         case .fileResult(_): return nil
@@ -292,6 +310,34 @@ struct ExtensionCommandWithArgData: Codable {
     let argument: String
 }
 
+struct DenoCommandData: Codable {
+    let extensionId: String
+    let commandId: String
+    let title: String
+    let subtitle: String?
+    let icon: String?
+    let keywords: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case extensionId = "extension_id"
+        case commandId = "command_id"
+        case title, subtitle, icon, keywords
+    }
+}
+
+struct DenoCommandWithArgData: Codable {
+    let extensionId: String
+    let commandId: String
+    let title: String
+    let argument: String
+
+    enum CodingKeys: String, CodingKey {
+        case extensionId = "extension_id"
+        case commandId = "command_id"
+        case title, argument
+    }
+}
+
 struct CalculationData: Codable {
     let expression: String
     let result: String
@@ -327,16 +373,30 @@ struct UnitConversionData: Codable {
 
 // MARK: - Execution Response
 
+/// Rust serializes ExecutionResult with `#[serde(tag = "result", content = "message")]`
+/// This produces: {"result": "Success"} or {"result": "Error", "message": "..."}
 struct ExecuteResponse: Codable {
-    let result: ExecutionResult
+    let result: String
     let message: String?
+
+    var executionResult: ExecutionResult {
+        switch result {
+        case "Success": return .success
+        case "SuccessKeepOpen": return .successKeepOpen
+        case "OpenSettings": return .openSettings
+        case "Quit": return .quit
+        case "Error": return .error(message ?? "Unknown error")
+        case "NeedsInput": return .needsInput
+        default: return .error("Unknown result: \(result)")
+        }
+    }
 }
 
-enum ExecutionResult: String, Codable {
-    case success = "Success"
-    case successKeepOpen = "SuccessKeepOpen"
-    case openSettings = "OpenSettings"
-    case quit = "Quit"
-    case error = "Error"
-    case needsInput = "NeedsInput"
+enum ExecutionResult {
+    case success
+    case successKeepOpen
+    case openSettings
+    case quit
+    case error(String)
+    case needsInput
 }

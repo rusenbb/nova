@@ -52,25 +52,26 @@ final class NovaCore {
     // MARK: - Execute
 
     func execute(index: UInt32) -> ExecutionResult {
-        guard let handle = handle else { return .error }
+        guard let handle = handle else { return .error("No handle") }
 
         guard let resultPtr = nova_core_execute(handle, index) else {
-            return .error
+            return .error("Execute returned null")
         }
 
         defer { nova_string_free(resultPtr) }
 
         let jsonString = String(cString: resultPtr)
         guard let jsonData = jsonString.data(using: .utf8) else {
-            return .error
+            return .error("Invalid UTF-8")
         }
 
         do {
             let response = try decoder.decode(ExecuteResponse.self, from: jsonData)
-            return response.result
+            return response.executionResult
         } catch {
             print("[Nova] Failed to decode execution result: \(error)")
-            return .error
+            print("[Nova] JSON was: \(jsonString)")
+            return .error("Decode error: \(error)")
         }
     }
 

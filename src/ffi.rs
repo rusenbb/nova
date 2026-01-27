@@ -80,23 +80,31 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
 
     // Initialize Deno extension host (if extensions directory exists)
     let deno_host = {
-        let deno_extensions_dir = dirs::data_dir()
-            .map(|d| d.join("nova").join("deno-extensions"))
-            .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/deno-extensions"));
+        let extensions_dir = dirs::data_dir()
+            .map(|d| d.join("nova").join("extensions"))
+            .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/extensions"));
 
-        if deno_extensions_dir.exists() {
+        println!("[Nova] Deno extensions dir: {:?}", extensions_dir);
+        println!("[Nova] Deno extensions dir exists: {}", extensions_dir.exists());
+
+        if extensions_dir.exists() {
             let config = ExtensionHostConfig {
-                extensions_dir: deno_extensions_dir,
+                extensions_dir: extensions_dir.clone(),
                 ..Default::default()
             };
             match ExtensionHost::new(config) {
-                Ok(host) => Some(host),
+                Ok(host) => {
+                    println!("[Nova] Deno host initialized: {} extensions, {} commands",
+                        host.extension_count(), host.command_count());
+                    Some(host)
+                }
                 Err(e) => {
-                    eprintln!("Warning: Failed to initialize Deno extension host: {}", e);
+                    println!("[Nova] Warning: Failed to initialize Deno extension host: {}", e);
                     None
                 }
             }
         } else {
+            println!("[Nova] Deno extensions dir not found, skipping");
             None
         }
     };
@@ -225,21 +233,61 @@ pub unsafe extern "C" fn nova_core_execute(handle: *mut NovaCore, index: u32) ->
 
     // Get the result at the index
     let result = match core.last_results.get(index as usize) {
-        Some(r) => r,
+        Some(r) => r.clone(),
         None => {
             let response = ExecuteResponse {
                 result: ExecutionResult::Error("Invalid result index".to_string()),
             };
             let json = serde_json::to_string(&response).unwrap_or_default();
-            return CString::new(json).map(|s| s.into_raw()).unwrap_or(ptr::null_mut());
+            return CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut());
         }
     };
 
+    // Handle DenoCommand specially - execute via extension host
+    if let SearchResult::DenoCommand { extension_id, command_id, .. } = &result {
+        if let Some(ref mut deno_host) = core.deno_host {
+            match deno_host.execute_command(extension_id, command_id, None) {
+                Ok(_) => {
+                    let response = ExecuteResponse {
+                        result: ExecutionResult::SuccessKeepOpen,
+                    };
+                    let json = serde_json::to_string(&response).unwrap_or_default();
+                    return CString::new(json)
+                        .map(|s| s.into_raw())
+                        .unwrap_or(ptr::null_mut());
+                }
+                Err(e) => {
+                    let response = ExecuteResponse {
+                        result: ExecutionResult::Error(format!("Extension error: {}", e)),
+                    };
+                    let json = serde_json::to_string(&response).unwrap_or_default();
+                    return CString::new(json)
+                        .map(|s| s.into_raw())
+                        .unwrap_or(ptr::null_mut());
+                }
+            }
+        } else {
+            let response = ExecuteResponse {
+                result: ExecutionResult::Error("Extension host not available".to_string()),
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            return CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut());
+        }
+    }
+
     // Convert SearchResult to ExecutionAction
-    let action = result_to_action(result);
+    let action = result_to_action(&result);
 
     // Execute the action
-    let exec_result = execute(&action, core.platform.as_ref(), Some(&core.extension_manager));
+    let exec_result = execute(
+        &action,
+        core.platform.as_ref(),
+        Some(&core.extension_manager),
+    );
 
     // Serialize result
     let response = ExecuteResponse {
@@ -654,10 +702,19 @@ pub unsafe extern "C" fn nova_core_send_event(
                     .and_then(|c| serde_json::from_value(c.clone()).ok());
 
                 let response = ExtensionExecuteResponse {
-                    success: parsed.get("success").and_then(|v| v.as_bool()).unwrap_or(false),
+                    success: parsed
+                        .get("success")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
                     component,
-                    error: parsed.get("error").and_then(|v| v.as_str()).map(String::from),
-                    should_close: parsed.get("should_close").and_then(|v| v.as_bool()).unwrap_or(false),
+                    error: parsed
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    should_close: parsed
+                        .get("should_close")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
                 };
 
                 let json = serde_json::to_string(&response).unwrap_or_default();

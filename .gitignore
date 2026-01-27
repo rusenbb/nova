@@ -14,3 +14,11 @@ target/
 # macOS frontend build artifacts
 frontends/macos/build/
 frontends/macos/*.xcodeproj/xcuserdata/
+frontends/macos/*.xcodeproj/project.xcworkspace/xcuserdata/
+frontends/macos/~/
+
+# Local dev extensions
+my-ext/
+
+# Extension build output
+sample-extensions/*/dist/

@@ -11,13 +11,21 @@ final class SearchPanel: NSPanel {
     private let searchField: NSTextField
     private let resultsTableView: NSTableView
     private let scrollView: NSScrollView
+    private var divider: NSBox!
 
     private var results: [SearchResult] = []
     private var selectedIndex: Int = 0
     private(set) var isPanelVisible: Bool = false
 
+    // Extension view support
+    private var navigationStack: NavigationStack?
+    private var isShowingExtension: Bool = false
+    private var currentExtensionId: String?
+
     var onSearch: ((String) -> [SearchResult])?
     var onExecute: ((UInt32) -> ExecutionResult)?
+    var onExecuteExtension: ((String, String, String?) -> ExtensionResponse?)?
+    var onExtensionEvent: ((String, String, [String: Any]) -> ExtensionResponse?)?
     var onHide: (() -> Void)?
 
     // MARK: - Initialization
@@ -106,7 +114,7 @@ final class SearchPanel: NSPanel {
         guard let contentView = contentView else { return }
 
         // Divider between search field and results
-        let divider = NSBox()
+        divider = NSBox()
         divider.boxType = .separator
         divider.translatesAutoresizingMaskIntoConstraints = false
 
@@ -168,6 +176,9 @@ final class SearchPanel: NSPanel {
 
     func hide() {
         isPanelVisible = false
+        if isShowingExtension {
+            hideExtensionView()
+        }
         orderOut(nil)
         onHide?()
     }
@@ -177,7 +188,11 @@ final class SearchPanel: NSPanel {
     override func keyDown(with event: NSEvent) {
         switch Int(event.keyCode) {
         case 53: // Escape
-            hide()
+            if isShowingExtension {
+                hideExtensionView()
+            } else {
+                hide()
+            }
 
         case 125: // Down arrow
             if selectedIndex < results.count - 1 {
@@ -204,16 +219,96 @@ final class SearchPanel: NSPanel {
     private func executeSelected() {
         guard !results.isEmpty, selectedIndex < results.count else { return }
 
+        let selectedResult = results[selectedIndex]
+
+        // Handle Deno extension commands specially
+        switch selectedResult {
+        case .denoCommand(let data):
+            executeExtensionCommand(extensionId: data.extensionId, commandId: data.commandId, argument: nil)
+            return
+        case .denoCommandWithArg(let data):
+            executeExtensionCommand(extensionId: data.extensionId, commandId: data.commandId, argument: data.argument)
+            return
+        default:
+            break
+        }
+
+        // Handle regular commands
         if let result = onExecute?(UInt32(selectedIndex)) {
             switch result {
             case .success, .openSettings, .quit:
                 hide()
             case .successKeepOpen, .needsInput:
                 break // Keep panel open
-            case .error:
+            case .error(let message):
+                print("[Nova] Execution error: \(message)")
                 NSSound.beep()
             }
         }
+    }
+
+    private func executeExtensionCommand(extensionId: String, commandId: String, argument: String?) {
+        guard let response = onExecuteExtension?(extensionId, commandId, argument) else {
+            NSSound.beep()
+            return
+        }
+
+        if let error = response.error {
+            print("[Nova] Extension error: \(error)")
+            NSSound.beep()
+            return
+        }
+
+        if let component = response.component {
+            currentExtensionId = extensionId
+            showExtensionView(component: component)
+        }
+
+        if response.shouldClose {
+            hide()
+        }
+    }
+
+    private func showExtensionView(component: ExtensionComponent) {
+        // Create navigation stack if needed
+        if navigationStack == nil {
+            let navStack = NavigationStack(frame: scrollView.bounds)
+            navStack.translatesAutoresizingMaskIntoConstraints = false
+            navStack.delegate = self
+            navigationStack = navStack
+        }
+
+        guard let navStack = navigationStack, let contentView = contentView else { return }
+
+        // Hide search results, show extension view
+        scrollView.isHidden = true
+        searchField.isHidden = true
+        divider.isHidden = true
+
+        if navStack.superview == nil {
+            contentView.addSubview(navStack)
+            NSLayoutConstraint.activate([
+                navStack.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 8),
+                navStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor),
+                navStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor),
+                navStack.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8),
+            ])
+        }
+
+        navStack.isHidden = false
+        navStack.push(component, title: nil)
+        isShowingExtension = true
+    }
+
+    private func hideExtensionView() {
+        navigationStack?.isHidden = true
+        navigationStack?.clear()
+        scrollView.isHidden = false
+        searchField.isHidden = false
+        divider.isHidden = false
+        isShowingExtension = false
+        currentExtensionId = nil
+        makeFirstResponder(searchField)
     }
 
     private func performSearch() {
@@ -268,7 +363,11 @@ extension SearchPanel: NSTextFieldDelegate {
 
         case #selector(cancelOperation(_:)):
             // Escape key
-            hide()
+            if isShowingExtension {
+                hideExtensionView()
+            } else {
+                hide()
+            }
             return true
 
         default:
@@ -433,6 +532,7 @@ final class ResultCellView: NSTableCellView {
         case .quicklink, .quicklinkWithQuery: symbolName = "link"
         case .script, .scriptWithArgument: symbolName = "applescript.fill"
         case .extensionCommand, .extensionCommandWithArg: symbolName = "puzzlepiece.extension.fill"
+        case .denoCommand, .denoCommandWithArg: symbolName = "puzzlepiece.extension.fill"
         case .calculation: symbolName = "equal.circle.fill"
         case .clipboardItem: symbolName = "doc.on.clipboard"
         case .fileResult: symbolName = "doc.fill"
@@ -460,5 +560,33 @@ final class ResultCellView: NSTableCellView {
 
         image.unlockFocus()
         return image
+    }
+}
+
+// MARK: - NavigationStackDelegate
+
+extension SearchPanel: NavigationStackDelegate {
+    func navigationStack(_ stack: NavigationStack, didTriggerCallback callbackId: String, payload: [String: Any]) {
+        guard let extensionId = currentExtensionId else { return }
+
+        if let response = onExtensionEvent?(extensionId, callbackId, payload) {
+            if let error = response.error {
+                print("[Nova] Extension callback error: \(error)")
+                return
+            }
+
+            if let component = response.component {
+                // Update the view with new component
+                stack.replace(with: component, title: nil)
+            }
+
+            if response.shouldClose {
+                hide()
+            }
+        }
+    }
+
+    func navigationStackDidBecomeEmpty(_ stack: NavigationStack) {
+        hideExtensionView()
     }
 }

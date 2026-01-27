@@ -83,7 +83,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         searchPanel?.onExecute = { [weak self] index in
-            return self?.core?.execute(index: index) ?? .error
+            return self?.core?.execute(index: index) ?? .error("Core not initialized")
+        }
+
+        searchPanel?.onExecuteExtension = { [weak self] extensionId, commandId, argument in
+            return self?.core?.executeExtension(extensionId: extensionId, commandId: commandId, argument: argument)
+        }
+
+        searchPanel?.onExtensionEvent = { [weak self] extensionId, callbackId, payload in
+            return self?.core?.sendEvent(extensionId: extensionId, callbackId: callbackId, payload: payload)
         }
 
         searchPanel?.onHide = {
