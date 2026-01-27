@@ -1,52 +1,9 @@
+use crate::platform::AppEntry;
 use freedesktop_desktop_entry::DesktopEntry;
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
 use std::path::PathBuf;
-use std::process::Command;
 use walkdir::WalkDir;
-
-#[derive(Debug, Clone)]
-#[allow(dead_code)]
-pub struct AppEntry {
-    pub id: String,
-    pub name: String,
-    pub exec: String,
-    pub icon: Option<String>,
-    pub description: Option<String>,
-    pub keywords: Vec<String>,
-}
-
-impl AppEntry {
-    /// Launch this application
-    #[allow(dead_code)]
-    pub fn launch(&self) -> Result<(), String> {
-        // Parse exec command - remove field codes like %f, %u, %F, %U
-        let exec = self
-            .exec
-            .replace("%f", "")
-            .replace("%F", "")
-            .replace("%u", "")
-            .replace("%U", "")
-            .replace("%i", "")
-            .replace("%c", "")
-            .replace("%k", "");
-
-        let parts: Vec<&str> = exec.split_whitespace().collect();
-        if parts.is_empty() {
-            return Err("Empty exec command".to_string());
-        }
-
-        let program = parts[0];
-        let args = &parts[1..];
-
-        Command::new(program)
-            .args(args)
-            .spawn()
-            .map_err(|e| format!("Failed to launch {}: {}", self.name, e))?;
-
-        Ok(())
-    }
-}
 
 pub struct AppIndex {
     entries: Vec<AppEntry>,

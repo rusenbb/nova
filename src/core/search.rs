@@ -293,10 +293,10 @@ impl SearchEngine {
         let mut results = Vec::new();
         let query_lower = query.to_lowercase();
 
-        // Split query into keyword and remaining text
-        let query_parts: Vec<&str> = query.splitn(2, ' ').collect();
-        let keyword = query_parts[0].to_lowercase();
-        let remaining_query = query_parts.get(1).map(|s| s.to_string());
+        // Split query into keyword and remaining text (avoid collect() allocation)
+        let mut query_parts = query.splitn(2, ' ');
+        let keyword = query_parts.next().unwrap_or("").to_lowercase();
+        let remaining_query = query_parts.next().map(|s| s.to_string());
 
         // 1. Check for alias matches (exact keyword match or partial match in keyword/name)
         for alias in &custom_commands.aliases {
@@ -338,7 +338,7 @@ impl SearchEngine {
             .iter()
             .any(|kw| query_lower.starts_with(kw))
         {
-            let filter = query_parts.get(1).map(|s| s.to_lowercase());
+            let filter = remaining_query.as_ref().map(|s| s.to_lowercase());
             let items = if let Some(ref f) = filter {
                 clipboard_history.search(f)
             } else {

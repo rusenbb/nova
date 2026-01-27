@@ -180,18 +180,6 @@ impl UIState {
 /// Type alias for the shared UI state handle
 type UIStateHandle = Rc<RefCell<UIState>>;
 
-/// Convert a services::AppEntry to platform::AppEntry
-fn to_platform_app(app: &services::AppEntry) -> AppEntry {
-    AppEntry {
-        id: app.id.clone(),
-        name: app.name.clone(),
-        exec: app.exec.clone(),
-        icon: app.icon.clone(),
-        description: app.description.clone(),
-        keywords: app.keywords.clone(),
-    }
-}
-
 /// Get the action to perform when a search result is executed
 fn result_to_action(result: &SearchResult) -> ExecutionAction {
     match result {
@@ -377,10 +365,10 @@ fn search_with_commands(
     let mut results = Vec::new();
     let query_lower = query.to_lowercase();
 
-    // Split query into keyword and remaining text (e.g., "ghs react hooks" -> "ghs", "react hooks")
-    let query_parts: Vec<&str> = query.splitn(2, ' ').collect();
-    let keyword = query_parts[0].to_lowercase();
-    let remaining_query = query_parts.get(1).map(|s| s.to_string());
+    // Split query into keyword and remaining text (avoid collect() allocation)
+    let mut query_parts = query.splitn(2, ' ');
+    let keyword = query_parts.next().unwrap_or("").to_lowercase();
+    let remaining_query = query_parts.next().map(|s| s.to_string());
 
     // 1. Check for alias match (exact keyword or partial match in keyword/name)
     for alias in &custom_commands.aliases {
@@ -423,7 +411,7 @@ fn search_with_commands(
         .any(|kw| query_lower.starts_with(kw))
     {
         // Extract optional filter after the keyword
-        let filter = query_parts.get(1).map(|s| s.to_lowercase());
+        let filter = remaining_query.as_ref().map(|s| s.to_lowercase());
 
         let items = if let Some(ref f) = filter {
             clipboard_history.search(f)
@@ -600,7 +588,7 @@ fn search_with_commands(
 
     // 6. App results (last since there are many)
     for app in app_index.search(query) {
-        results.push(SearchResult::App(to_platform_app(app)));
+        results.push(SearchResult::App(app.clone()));
     }
 
     // Limit total results

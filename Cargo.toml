@@ -4,6 +4,12 @@ version = "0.1.0"
 description = "Keyboard-driven productivity launcher"
 authors = ["rusen"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/rusenbb/nova"
+homepage = "https://github.com/rusenbb/nova"
+keywords = ["launcher", "productivity", "raycast", "spotlight", "alfred"]
+categories = ["command-line-utilities", "gui"]
+readme = "README.md"
 
 [lib]
 name = "nova"
