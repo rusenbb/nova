@@ -1531,7 +1531,10 @@ fn build_ui(app: &Application) {
 
     // Poll clipboard for changes (every 500ms)
     glib::timeout_add_local(std::time::Duration::from_millis(500), move || {
-        clipboard_history.borrow_mut().poll();
+        let platform = platform::current();
+        if let Some(content) = platform.clipboard_read() {
+            clipboard_history.borrow_mut().poll_with_content(&content);
+        }
         ControlFlow::Continue
     });
 
