@@ -325,6 +325,57 @@ impl SearchEngine {
                 name: "Shut Down".to_string(),
                 description: "Shut down the computer".to_string(),
             },
+            // Window management commands
+            SearchResult::Command {
+                id: "window:left-half".to_string(),
+                name: "Move Window to Left Half".to_string(),
+                description: "Tile window to left half of screen".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:right-half".to_string(),
+                name: "Move Window to Right Half".to_string(),
+                description: "Tile window to right half of screen".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:top-half".to_string(),
+                name: "Move Window to Top Half".to_string(),
+                description: "Tile window to top half of screen".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:bottom-half".to_string(),
+                name: "Move Window to Bottom Half".to_string(),
+                description: "Tile window to bottom half of screen".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:top-left-quarter".to_string(),
+                name: "Move Window to Top Left".to_string(),
+                description: "Tile window to top-left quarter".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:top-right-quarter".to_string(),
+                name: "Move Window to Top Right".to_string(),
+                description: "Tile window to top-right quarter".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:bottom-left-quarter".to_string(),
+                name: "Move Window to Bottom Left".to_string(),
+                description: "Tile window to bottom-left quarter".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:bottom-right-quarter".to_string(),
+                name: "Move Window to Bottom Right".to_string(),
+                description: "Tile window to bottom-right quarter".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:maximize".to_string(),
+                name: "Maximize Window".to_string(),
+                description: "Expand window to fill screen".to_string(),
+            },
+            SearchResult::Command {
+                id: "window:center".to_string(),
+                name: "Center Window".to_string(),
+                description: "Move window to center of screen".to_string(),
+            },
         ]
     }
 
@@ -336,6 +387,28 @@ impl SearchEngine {
             "system:logout" => Some(SystemCommand::Logout),
             "system:restart" => Some(SystemCommand::Restart),
             "system:shutdown" => Some(SystemCommand::Shutdown),
+            _ => None,
+        }
+    }
+
+    /// Parse a window command ID into a WindowPosition.
+    pub fn parse_window_command(id: &str) -> Option<crate::platform::WindowPosition> {
+        use crate::platform::WindowPosition;
+        match id {
+            "window:left-half" => Some(WindowPosition::LeftHalf),
+            "window:right-half" => Some(WindowPosition::RightHalf),
+            "window:top-half" => Some(WindowPosition::TopHalf),
+            "window:bottom-half" => Some(WindowPosition::BottomHalf),
+            "window:top-left-quarter" => Some(WindowPosition::TopLeftQuarter),
+            "window:top-right-quarter" => Some(WindowPosition::TopRightQuarter),
+            "window:bottom-left-quarter" => Some(WindowPosition::BottomLeftQuarter),
+            "window:bottom-right-quarter" => Some(WindowPosition::BottomRightQuarter),
+            "window:left-third" => Some(WindowPosition::LeftThird),
+            "window:center-third" => Some(WindowPosition::CenterThird),
+            "window:right-third" => Some(WindowPosition::RightThird),
+            "window:center" => Some(WindowPosition::Center),
+            "window:maximize" => Some(WindowPosition::Maximize),
+            "window:almost-maximize" => Some(WindowPosition::AlmostMaximize),
             _ => None,
         }
     }

@@ -49,6 +49,224 @@ pub enum SystemCommand {
     Shutdown,
 }
 
+// ============================================================================
+// Window Management Types
+// ============================================================================
+
+/// Information about a window.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WindowInfo {
+    /// Platform-specific window identifier
+    pub id: u64,
+    /// Window title
+    pub title: String,
+    /// Application name
+    pub app_name: String,
+    /// Application bundle ID (macOS) or class (X11) or exe name (Windows)
+    pub app_id: String,
+    /// Process ID
+    pub pid: u32,
+    /// Current window frame (position and size)
+    pub frame: WindowFrame,
+    /// Whether the window is fullscreen
+    pub is_fullscreen: bool,
+    /// Whether the window is minimized
+    pub is_minimized: bool,
+}
+
+/// Window position and size.
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
+pub struct WindowFrame {
+    /// X position (pixels from left of screen)
+    pub x: i32,
+    /// Y position (pixels from top of screen)
+    pub y: i32,
+    /// Window width in pixels
+    pub width: u32,
+    /// Window height in pixels
+    pub height: u32,
+}
+
+/// Preset window positions for tiling.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum WindowPosition {
+    /// Left half of screen
+    LeftHalf,
+    /// Right half of screen
+    RightHalf,
+    /// Top half of screen
+    TopHalf,
+    /// Bottom half of screen
+    BottomHalf,
+    /// Top-left quarter
+    TopLeftQuarter,
+    /// Top-right quarter
+    TopRightQuarter,
+    /// Bottom-left quarter
+    BottomLeftQuarter,
+    /// Bottom-right quarter
+    BottomRightQuarter,
+    /// Left third of screen
+    LeftThird,
+    /// Center third of screen
+    CenterThird,
+    /// Right third of screen
+    RightThird,
+    /// Center of screen (reasonable size)
+    Center,
+    /// Maximize (full screen minus system UI)
+    Maximize,
+    /// Almost maximize (small margin)
+    AlmostMaximize,
+}
+
+/// Screen/display information.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScreenInfo {
+    /// Screen identifier
+    pub id: u32,
+    /// Screen name
+    pub name: String,
+    /// Total screen frame
+    pub frame: WindowFrame,
+    /// Visible frame (excluding menu bar, dock, etc.)
+    pub visible_frame: WindowFrame,
+    /// Is this the primary/main screen
+    pub is_primary: bool,
+}
+
+impl WindowPosition {
+    /// Calculate frame for this position given a screen's visible frame.
+    pub fn calculate_frame(&self, screen: &WindowFrame) -> WindowFrame {
+        let x = screen.x;
+        let y = screen.y;
+        let w = screen.width;
+        let h = screen.height;
+        let half_w = w / 2;
+        let half_h = h / 2;
+        let third_w = w / 3;
+        let margin = 10i32;
+
+        match self {
+            WindowPosition::LeftHalf => WindowFrame {
+                x,
+                y,
+                width: half_w,
+                height: h,
+            },
+            WindowPosition::RightHalf => WindowFrame {
+                x: x + half_w as i32,
+                y,
+                width: half_w,
+                height: h,
+            },
+            WindowPosition::TopHalf => WindowFrame {
+                x,
+                y,
+                width: w,
+                height: half_h,
+            },
+            WindowPosition::BottomHalf => WindowFrame {
+                x,
+                y: y + half_h as i32,
+                width: w,
+                height: half_h,
+            },
+            WindowPosition::TopLeftQuarter => WindowFrame {
+                x,
+                y,
+                width: half_w,
+                height: half_h,
+            },
+            WindowPosition::TopRightQuarter => WindowFrame {
+                x: x + half_w as i32,
+                y,
+                width: half_w,
+                height: half_h,
+            },
+            WindowPosition::BottomLeftQuarter => WindowFrame {
+                x,
+                y: y + half_h as i32,
+                width: half_w,
+                height: half_h,
+            },
+            WindowPosition::BottomRightQuarter => WindowFrame {
+                x: x + half_w as i32,
+                y: y + half_h as i32,
+                width: half_w,
+                height: half_h,
+            },
+            WindowPosition::LeftThird => WindowFrame {
+                x,
+                y,
+                width: third_w,
+                height: h,
+            },
+            WindowPosition::CenterThird => WindowFrame {
+                x: x + third_w as i32,
+                y,
+                width: third_w,
+                height: h,
+            },
+            WindowPosition::RightThird => WindowFrame {
+                x: x + (third_w * 2) as i32,
+                y,
+                width: third_w,
+                height: h,
+            },
+            WindowPosition::Center => {
+                let center_w = w * 2 / 3;
+                let center_h = h * 2 / 3;
+                WindowFrame {
+                    x: x + ((w - center_w) / 2) as i32,
+                    y: y + ((h - center_h) / 2) as i32,
+                    width: center_w,
+                    height: center_h,
+                }
+            }
+            WindowPosition::Maximize => WindowFrame {
+                x,
+                y,
+                width: w,
+                height: h,
+            },
+            WindowPosition::AlmostMaximize => WindowFrame {
+                x: x + margin,
+                y: y + margin,
+                width: w.saturating_sub((margin * 2) as u32),
+                height: h.saturating_sub((margin * 2) as u32),
+            },
+        }
+    }
+}
+
+impl std::str::FromStr for WindowPosition {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "left-half" | "left" => Ok(WindowPosition::LeftHalf),
+            "right-half" | "right" => Ok(WindowPosition::RightHalf),
+            "top-half" | "top" => Ok(WindowPosition::TopHalf),
+            "bottom-half" | "bottom" => Ok(WindowPosition::BottomHalf),
+            "top-left-quarter" | "top-left" => Ok(WindowPosition::TopLeftQuarter),
+            "top-right-quarter" | "top-right" => Ok(WindowPosition::TopRightQuarter),
+            "bottom-left-quarter" | "bottom-left" => Ok(WindowPosition::BottomLeftQuarter),
+            "bottom-right-quarter" | "bottom-right" => Ok(WindowPosition::BottomRightQuarter),
+            "left-third" => Ok(WindowPosition::LeftThird),
+            "center-third" => Ok(WindowPosition::CenterThird),
+            "right-third" => Ok(WindowPosition::RightThird),
+            "center" => Ok(WindowPosition::Center),
+            "maximize" | "max" => Ok(WindowPosition::Maximize),
+            "almost-maximize" | "almost-max" => Ok(WindowPosition::AlmostMaximize),
+            _ => Err(format!("Unknown window position: {}", s)),
+        }
+    }
+}
+
 /// Result of a notification being shown.
 pub type NotifyResult = Result<(), String>;
 
@@ -123,6 +341,65 @@ pub trait Platform: Send + Sync {
 
     /// Run an arbitrary shell command.
     fn run_shell_command(&self, command: &str) -> Result<(), String>;
+
+    // ==================== Window Management ====================
+
+    /// Get information about the currently focused window.
+    ///
+    /// Returns `Err` if there is no focused window or if window
+    /// management is not supported on this platform.
+    fn get_focused_window(&self) -> Result<WindowInfo, String> {
+        Err("Window management not supported on this platform".to_string())
+    }
+
+    /// List all visible windows on all screens.
+    ///
+    /// Returns an empty Vec if window management is not supported.
+    fn list_windows(&self) -> Result<Vec<WindowInfo>, String> {
+        Ok(Vec::new())
+    }
+
+    /// Get information about all screens/displays.
+    fn list_screens(&self) -> Result<Vec<ScreenInfo>, String> {
+        Ok(Vec::new())
+    }
+
+    /// Move and resize a window to the given frame.
+    fn set_window_frame(&self, _window_id: u64, _frame: WindowFrame) -> Result<(), String> {
+        Err("Window management not supported on this platform".to_string())
+    }
+
+    /// Apply a preset window position to a window.
+    ///
+    /// The window will be moved to the screen it's currently on.
+    fn set_window_position(&self, window_id: u64, position: WindowPosition) -> Result<(), String> {
+        // Default implementation: get window's screen, calculate frame, apply
+        let window = self.get_focused_window()?;
+        let screens = self.list_screens()?;
+
+        // Find screen that contains the window center
+        let window_center_x = window.frame.x + (window.frame.width as i32 / 2);
+        let window_center_y = window.frame.y + (window.frame.height as i32 / 2);
+
+        let screen = screens
+            .iter()
+            .find(|s| {
+                window_center_x >= s.visible_frame.x
+                    && window_center_x < s.visible_frame.x + s.visible_frame.width as i32
+                    && window_center_y >= s.visible_frame.y
+                    && window_center_y < s.visible_frame.y + s.visible_frame.height as i32
+            })
+            .or_else(|| screens.first())
+            .ok_or("No screens available")?;
+
+        let frame = position.calculate_frame(&screen.visible_frame);
+        self.set_window_frame(window_id, frame)
+    }
+
+    /// Check if window management is supported on this platform.
+    fn window_management_supported(&self) -> bool {
+        false
+    }
 }
 
 /// Get the platform implementation for the current OS.

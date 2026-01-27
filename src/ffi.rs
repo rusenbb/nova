@@ -1941,3 +1941,280 @@ fn browser_error_response(message: &str) -> *mut c_char {
         .map(|s| s.into_raw())
         .unwrap_or(ptr::null_mut())
 }
+
+// ============================================================================
+// Window Management FFI Functions
+// ============================================================================
+
+use crate::platform::{ScreenInfo, WindowFrame, WindowInfo, WindowPosition};
+
+/// JSON response for window operations.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct WindowResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    window: Option<WindowInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    windows: Option<Vec<WindowInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    screens: Option<Vec<ScreenInfo>>,
+}
+
+/// Check if window management is supported.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// 1 if supported, 0 if not.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_window_management_supported(handle: *mut NovaCore) -> i32 {
+    if handle.is_null() {
+        return 0;
+    }
+
+    let core = &*handle;
+    if core.platform.window_management_supported() {
+        1
+    } else {
+        0
+    }
+}
+
+/// Get the currently focused window.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string containing WindowInfo.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_get_focused_window(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return window_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+
+    match core.platform.get_focused_window() {
+        Ok(window) => {
+            let response = WindowResponse {
+                success: true,
+                error: None,
+                window: Some(window),
+                windows: None,
+                screens: None,
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => window_error_response(&e),
+    }
+}
+
+/// List all visible windows.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string containing array of WindowInfo.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_list_windows(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return window_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+
+    match core.platform.list_windows() {
+        Ok(windows) => {
+            let response = WindowResponse {
+                success: true,
+                error: None,
+                window: None,
+                windows: Some(windows),
+                screens: None,
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => window_error_response(&e),
+    }
+}
+
+/// List all screens/displays.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string containing array of ScreenInfo.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_list_screens(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return window_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+
+    match core.platform.list_screens() {
+        Ok(screens) => {
+            let response = WindowResponse {
+                success: true,
+                error: None,
+                window: None,
+                windows: None,
+                screens: Some(screens),
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => window_error_response(&e),
+    }
+}
+
+/// Move and resize a window.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `window_id` - Window identifier
+/// * `x` - New X position
+/// * `y` - New Y position
+/// * `width` - New width
+/// * `height` - New height
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_set_window_frame(
+    handle: *mut NovaCore,
+    window_id: u64,
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+) -> *mut c_char {
+    if handle.is_null() {
+        return window_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+
+    let frame = WindowFrame {
+        x,
+        y,
+        width,
+        height,
+    };
+
+    match core.platform.set_window_frame(window_id, frame) {
+        Ok(()) => {
+            let response = serde_json::json!({
+                "success": true
+            });
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => window_error_response(&e),
+    }
+}
+
+/// Apply a preset window position.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `position` - Position name (e.g., "left-half", "maximize", "center")
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_set_window_position(
+    handle: *mut NovaCore,
+    position: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || position.is_null() {
+        return window_error_response("Invalid handle or position");
+    }
+
+    let core = &*handle;
+
+    let pos_str = match CStr::from_ptr(position).to_str() {
+        Ok(s) => s,
+        Err(_) => return window_error_response("Invalid position encoding"),
+    };
+
+    let window_pos: WindowPosition = match pos_str.parse() {
+        Ok(p) => p,
+        Err(e) => return window_error_response(&e),
+    };
+
+    // Get focused window first
+    let window = match core.platform.get_focused_window() {
+        Ok(w) => w,
+        Err(e) => return window_error_response(&format!("Failed to get focused window: {}", e)),
+    };
+
+    match core.platform.set_window_position(window.id, window_pos) {
+        Ok(()) => {
+            let response = serde_json::json!({
+                "success": true,
+                "position": pos_str
+            });
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => window_error_response(&e),
+    }
+}
+
+/// Helper function to create a window error response.
+fn window_error_response(message: &str) -> *mut c_char {
+    let response = WindowResponse {
+        success: false,
+        error: Some(message.to_string()),
+        window: None,
+        windows: None,
+        screens: None,
+    };
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
