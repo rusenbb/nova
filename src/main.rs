@@ -1,13 +1,10 @@
 //! Nova GTK frontend for Linux.
+//!
+//! This binary uses the nova library for core functionality and adds
+//! GTK-specific UI code.
 
-mod config;
-mod core;
-mod error;
-mod executor;
+// GTK-specific modules (not part of the library)
 mod gtk;
-mod platform;
-mod search;
-mod services;
 mod settings;
 
 use ::gtk::prelude::*;

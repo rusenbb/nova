@@ -1,4 +1,3 @@
-use crate::config::{generate_css, set_autostart, AliasConfig, Config, QuicklinkConfig};
 use gdk::Screen;
 use glib::clone;
 use gtk::prelude::*;
@@ -7,6 +6,7 @@ use gtk::{
     CssProvider, Dialog, DialogFlags, Entry, Grid, Label, ListBox, ListBoxRow, Notebook,
     Orientation, ResponseType, Scale, ScrolledWindow, SpinButton, StyleContext, Switch,
 };
+use nova::config::{generate_css, set_autostart, AliasConfig, Config, QuicklinkConfig};
 use pango::EllipsizeMode;
 use std::cell::RefCell;
 use std::process::Command;

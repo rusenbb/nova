@@ -416,6 +416,7 @@ impl SearchEngine {
     /// Search across all sources with the given query.
     ///
     /// If frecency data is provided, results will be boosted by usage history.
+    #[allow(clippy::too_many_arguments)]
     pub fn search(
         &self,
         apps: &[AppEntry],

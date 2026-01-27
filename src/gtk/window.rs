@@ -1,9 +1,5 @@
 //! Window building and rendering for GTK frontend.
 
-use crate::config;
-use crate::core::search::{SearchEngine, SearchResult};
-use crate::platform;
-use crate::services::{self, AppIndex, CustomCommandsIndex, ExtensionIndex};
 use crate::settings;
 use gdk::prelude::*;
 use gdk::Screen;
@@ -13,6 +9,10 @@ use gtk::{
     Application, ApplicationWindow, CssProvider, Entry, EventBox, Label, ListBox, ListBoxRow,
     Orientation, StyleContext,
 };
+use nova::config;
+use nova::core::search::{SearchEngine, SearchResult};
+use nova::platform;
+use nova::services::{self, AppIndex, CustomCommandsIndex, ExtensionIndex};
 use std::cell::RefCell;
 use std::io::{Read, Write};
 use std::os::unix::net::UnixListener;
@@ -27,7 +27,7 @@ use super::exec::{
 };
 use super::ipc::get_socket_path;
 use super::state::{result_to_action, CommandModeState, UIState, UIStateHandle};
-use crate::executor::ExecutionAction;
+use nova::executor::ExecutionAction;
 
 pub fn build_ui(app: &Application) {
     // Load config (stored in Rc<RefCell> for runtime updates like position)
@@ -221,6 +221,7 @@ pub fn build_ui(app: &Application) {
                 &custom_commands_search.borrow(),
                 &extension_manager_search,
                 &clipboard_history_search.borrow(),
+                None, // GTK frontend doesn't use frecency yet
                 &query,
                 max_results,
             )
@@ -292,6 +293,7 @@ pub fn build_ui(app: &Application) {
                         &custom_commands_for_key.borrow(),
                         &extension_manager_for_key,
                         &clipboard_history_for_key.borrow(),
+                        None,
                         "",
                         max_results,
                     );
@@ -311,6 +313,7 @@ pub fn build_ui(app: &Application) {
                         &custom_commands_for_key.borrow(),
                         &extension_manager_for_key,
                         &clipboard_history_for_key.borrow(),
+                        None,
                         "",
                         max_results,
                     );
@@ -484,6 +487,7 @@ pub fn build_ui(app: &Application) {
                     &custom_commands_for_ipc.borrow(),
                     &extension_manager_for_ipc,
                     &clipboard_history_for_ipc.borrow(),
+                    None,
                     "",
                     max_results,
                 );

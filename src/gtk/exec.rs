@@ -1,6 +1,6 @@
 //! Execution helpers for GTK frontend.
 
-use crate::services::{self, OutputMode, ScriptOutputMode};
+use nova::services::{self, OutputMode, ScriptOutputMode};
 use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;

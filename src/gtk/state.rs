@@ -1,11 +1,11 @@
 //! UI state management for GTK.
 
-use crate::config;
-use crate::core::search::SearchResult;
-use crate::executor::{ExecutionAction, SystemCommand};
-use crate::services::Extension;
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Entry, Label, ListBox};
+use nova::config;
+use nova::core::search::SearchResult;
+use nova::executor::{ExecutionAction, SystemCommand};
+use nova::services::Extension;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Instant;

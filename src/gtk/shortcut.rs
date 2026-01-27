@@ -1,6 +1,6 @@
 //! Keyboard shortcut configuration for GTK/GNOME.
 
-use crate::config;
+use nova::config;
 use std::env;
 use std::process::Command;
 
