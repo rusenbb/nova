@@ -1040,13 +1040,19 @@ fn set_shortcut_impl(shortcut: &str, verbose: bool) -> Result<(), String> {
 }
 
 fn print_help() {
-    println!("Nova - Keyboard-driven productivity launcher for Linux");
+    println!("Nova - Keyboard-driven productivity launcher");
     println!();
     println!("USAGE:");
-    println!("    nova                      Start Nova (or toggle if already running)");
-    println!("    nova --settings           Open settings window");
-    println!("    nova --set-shortcut KEY   Set the global keyboard shortcut");
-    println!("    nova --help               Show this help message");
+    println!("    nova                              Start Nova (or toggle if already running)");
+    println!("    nova --settings                   Open settings window");
+    println!("    nova --set-shortcut KEY           Set the global keyboard shortcut");
+    println!("    nova --help                       Show this help message");
+    println!();
+    println!("EXTENSION DEVELOPMENT:");
+    println!("    nova create extension NAME        Create a new extension");
+    println!("    nova dev [PATH]                   Run extension with hot reload");
+    println!("    nova build [PATH]                 Build extension for distribution");
+    println!("    nova install SOURCE               Install extension from source");
     println!();
     println!("SHORTCUT FORMAT:");
     println!("    <Super>space     - Super+Space");
@@ -1056,13 +1062,23 @@ fn print_help() {
     println!();
     println!("EXAMPLES:");
     println!("    nova --set-shortcut '<Alt>space'");
-    println!("    nova --set-shortcut '<Super><Alt>n'");
+    println!("    nova create extension my-extension");
 }
 
 fn main() {
+    // Try CLI commands first (create, dev, build, install)
+    match nova::cli::run() {
+        Ok(true) => return, // CLI handled the command
+        Ok(false) => {}     // No CLI command, continue to GTK
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(1);
+        }
+    }
+
     let args: Vec<String> = env::args().collect();
 
-    // Handle CLI arguments
+    // Handle legacy CLI arguments (--settings, --set-shortcut)
     if args.len() > 1 {
         match args[1].as_str() {
             "--help" | "-h" => {
@@ -1096,8 +1112,15 @@ fn main() {
                     }
                 }
             }
-            _ => {
+            arg if arg.starts_with('-') => {
+                // Unknown flag - clap already handled valid subcommands
                 eprintln!("Unknown argument: {}", args[1]);
+                eprintln!("Run 'nova --help' for usage information");
+                std::process::exit(1);
+            }
+            _ => {
+                // Positional arg without subcommand - show help
+                eprintln!("Unknown command: {}", args[1]);
                 eprintln!("Run 'nova --help' for usage information");
                 std::process::exit(1);
             }
