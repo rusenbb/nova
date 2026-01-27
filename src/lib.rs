@@ -11,6 +11,7 @@ pub mod extensions;
 pub mod ffi;
 pub mod platform;
 pub mod services;
+pub mod theme;
 
 // Re-export commonly used types
 pub use config::Config;

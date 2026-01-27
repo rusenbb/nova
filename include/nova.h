@@ -105,6 +105,57 @@ uint32_t nova_core_result_count(NovaCore* handle);
  */
 void nova_string_free(char* ptr);
 
+// ============================================================================
+// Theme API
+// ============================================================================
+
+/**
+ * Get the complete theme as a JSON string.
+ *
+ * @return A JSON string containing all theme values (colors, spacing,
+ *         typography, components, etc.). The caller must free this string
+ *         using nova_string_free().
+ *
+ * JSON format:
+ * {
+ *   "colors": { "background": "#1a1a1a", ... },
+ *   "spacing": { "xs": 4, "sm": 8, ... },
+ *   "typography": { "fontFamily": "system-ui", ... },
+ *   "components": { "listItemHeight": 52, ... },
+ *   ...
+ * }
+ */
+char* nova_core_get_theme(void);
+
+/**
+ * Get a specific theme color by key.
+ *
+ * @param key The color key (e.g., "background", "foreground", "accent")
+ *
+ * @return The color value as a hex string (e.g., "#1a1a1a").
+ *         The caller must free this string using nova_string_free().
+ *         Returns NULL if the key is not found.
+ */
+char* nova_core_get_theme_color(const char* key);
+
+/**
+ * Get a theme spacing value by key.
+ *
+ * @param key The spacing key (e.g., "xs", "sm", "md", "lg", "xl", "xxl")
+ *
+ * @return The spacing value in pixels, or 0 if not found.
+ */
+uint32_t nova_core_get_theme_spacing(const char* key);
+
+/**
+ * Get a theme component value by key.
+ *
+ * @param key The component key (e.g., "listItemHeight", "panelWidth")
+ *
+ * @return The component value, or 0 if not found.
+ */
+uint32_t nova_core_get_theme_component(const char* key);
+
 #ifdef __cplusplus
 }
 #endif

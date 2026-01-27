@@ -3,6 +3,7 @@
 //  Nova
 //
 //  View for rendering Detail components with markdown content and metadata sidebar.
+//  Uses theme tokens from Theme.swift for consistent styling.
 //
 
 import Cocoa
@@ -10,6 +11,7 @@ import WebKit
 
 /// View for rendering extension Detail components.
 final class ExtensionDetailView: NSView {
+    private let theme = Theme.shared
     private let splitView: NSSplitView
     private let markdownWebView: WKWebView
     private let metadataScrollView: NSScrollView
@@ -273,13 +275,12 @@ final class ExtensionDetailView: NSView {
     }
 
     private func wrapWithStyles(_ html: String) -> String {
-        let isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-
-        let bgColor = isDark ? "#1e1e1e" : "#ffffff"
-        let textColor = isDark ? "#e0e0e0" : "#1a1a1a"
-        let linkColor = isDark ? "#58a6ff" : "#0066cc"
-        let codeBackground = isDark ? "#2d2d2d" : "#f6f8fa"
-        let borderColor = isDark ? "#444444" : "#d0d7de"
+        // Use theme colors for consistent styling (always dark mode in Nova)
+        let bgColor = theme.data.colors.background
+        let textColor = theme.data.colors.foreground
+        let linkColor = theme.data.colors.accent
+        let codeBackground = theme.data.colors.backgroundElevated
+        let borderColor = theme.data.colors.border
 
         return """
         <!DOCTYPE html>
@@ -338,7 +339,7 @@ final class ExtensionDetailView: NSView {
                     border-left: 4px solid \(borderColor);
                     padding-left: 16px;
                     margin-left: 0;
-                    color: \(isDark ? "#8b949e" : "#57606a");
+                    color: \(theme.data.colors.foregroundSecondary);
                 }
             </style>
         </head>
@@ -359,8 +360,8 @@ final class ExtensionDetailView: NSView {
 
         // Add title
         let titleLabel = NSTextField(labelWithString: "METADATA")
-        titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
-        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.font = theme.font(size: .sm, weight: .semibold)
+        titleLabel.textColor = theme.foregroundSecondaryColor
         metadataStackView.addArrangedSubview(titleLabel)
 
         // Add divider
@@ -381,12 +382,12 @@ final class ExtensionDetailView: NSView {
         let container = NSStackView()
         container.orientation = .vertical
         container.alignment = .leading
-        container.spacing = 4
+        container.spacing = theme.spacingXs
 
         // Title
         let titleLabel = NSTextField(labelWithString: item.title)
-        titleLabel.font = .systemFont(ofSize: 11, weight: .medium)
-        titleLabel.textColor = .secondaryLabelColor
+        titleLabel.font = theme.font(size: .sm, weight: .medium)
+        titleLabel.textColor = theme.foregroundSecondaryColor
         container.addArrangedSubview(titleLabel)
 
         // Value (text or link)
@@ -395,8 +396,8 @@ final class ExtensionDetailView: NSView {
             linkButton.title = link.text
             linkButton.bezelStyle = .inline
             linkButton.isBordered = false
-            linkButton.font = .systemFont(ofSize: 13)
-            linkButton.contentTintColor = .controlAccentColor
+            linkButton.font = theme.font(size: .md)
+            linkButton.contentTintColor = theme.accentColor
             linkButton.target = self
             linkButton.action = #selector(openLink(_:))
             linkButton.tag = link.url.hashValue
@@ -415,14 +416,14 @@ final class ExtensionDetailView: NSView {
                 let iconView = NSImageView()
                 iconView.image = loadIcon(from: icon)
                 iconView.imageScaling = .scaleProportionallyUpOrDown
-                iconView.widthAnchor.constraint(equalToConstant: 16).isActive = true
-                iconView.heightAnchor.constraint(equalToConstant: 16).isActive = true
+                iconView.widthAnchor.constraint(equalToConstant: theme.iconSizeSm).isActive = true
+                iconView.heightAnchor.constraint(equalToConstant: theme.iconSizeSm).isActive = true
                 valueStack.addArrangedSubview(iconView)
             }
 
             let valueLabel = NSTextField(labelWithString: text)
-            valueLabel.font = .systemFont(ofSize: 13)
-            valueLabel.textColor = .labelColor
+            valueLabel.font = theme.font(size: .md)
+            valueLabel.textColor = theme.foregroundColor
             valueLabel.lineBreakMode = .byTruncatingTail
             valueStack.addArrangedSubview(valueLabel)
 
