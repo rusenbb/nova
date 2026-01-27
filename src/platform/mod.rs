@@ -3,6 +3,9 @@
 //! This module defines the `Platform` trait that abstracts all OS-specific
 //! operations, allowing the core engine and UI to remain platform-agnostic.
 
+// Allow dead code - trait methods and functions are used by FFI layer but not by GTK binary.
+#![allow(dead_code)]
+
 #[cfg(target_os = "linux")]
 mod linux;
 
