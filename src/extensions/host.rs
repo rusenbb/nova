@@ -461,6 +461,62 @@ impl ExtensionHost {
         // Dispatch the event
         isolate.dispatch_event(event_id, event_data)
     }
+
+    /// Execute the background handler for an extension.
+    ///
+    /// This is called by the BackgroundScheduler at configured intervals.
+    /// The extension must export a `background()` function to handle these calls.
+    ///
+    /// # Arguments
+    /// * `ext_id` - Extension identifier
+    ///
+    /// # Returns
+    /// A JSON string with the background execution result.
+    pub fn execute_background(&mut self, ext_id: &ExtensionId) -> ExtensionResult<String> {
+        // Check that the extension has background enabled
+        let manifest = self
+            .manifests
+            .get(ext_id)
+            .ok_or_else(|| ExtensionError::ExtensionNotFound(ext_id.clone()))?;
+
+        if manifest.background.is_none() {
+            return Err(ExtensionError::ExecutionError(format!(
+                "Extension '{}' does not have background enabled in manifest",
+                ext_id
+            )));
+        }
+
+        // Check background permission
+        if !manifest.permissions.background {
+            return Err(ExtensionError::PermissionDenied {
+                permission: "background".to_string(),
+            });
+        }
+
+        // Get or load the isolate
+        let isolate = self.get_or_load_isolate(ext_id)?;
+
+        // Execute background handler
+        isolate.execute_background()
+    }
+
+    /// Get all extensions that have background execution configured.
+    ///
+    /// Returns a list of (extension_id, background_config) tuples.
+    pub fn extensions_with_background(
+        &self,
+    ) -> Vec<(ExtensionId, super::manifest::BackgroundConfig)> {
+        self.manifests
+            .iter()
+            .filter_map(|(id, manifest)| {
+                manifest
+                    .background
+                    .as_ref()
+                    .filter(|_| manifest.permissions.background)
+                    .map(|bg| (id.clone(), bg.clone()))
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]
