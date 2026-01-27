@@ -17,8 +17,6 @@ pub mod search;
 // Some may appear unused when compiling with gtk-ui feature since
 // GTK main.rs defines its own local types.
 #[allow(unused_imports)]
-pub use search::{SearchEngine, SearchResult};
-#[allow(unused_imports)]
 pub use crate::services::calculator;
 #[allow(unused_imports)]
 pub use crate::services::clipboard::{ClipboardEntry, ClipboardHistory};
@@ -38,3 +36,5 @@ pub use crate::services::file_search::{self, FileEntry};
 pub use crate::services::format;
 #[allow(unused_imports)]
 pub use crate::services::units::{self, Conversion};
+#[allow(unused_imports)]
+pub use search::{SearchEngine, SearchResult};
