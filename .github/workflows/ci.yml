@@ -55,16 +55,9 @@ jobs:
       - name: Run clippy (library)
         run: cargo clippy --lib -- -D warnings
 
-      # GTK UI needs refactoring to match library types - skip for now
-      # - name: Run clippy (Linux GTK)
-      #   if: runner.os == 'Linux'
-      #   run: cargo clippy --features gtk-ui -- -D warnings
+      - name: Run clippy (Linux GTK)
+        if: runner.os == 'Linux'
+        run: cargo clippy --features gtk-ui -- -D warnings
 
       - name: Run tests
         run: cargo test
-
-  # GTK build is disabled - needs refactoring to match library types
-  # macOS builds use Xcode directly, not cargo
-  # build:
-  #   name: Build (${{ matrix.os }} ${{ matrix.target }})
-  #   ...

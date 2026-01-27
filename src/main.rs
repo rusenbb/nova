@@ -29,6 +29,9 @@ use std::time::Instant;
 
 const APP_ID: &str = "com.rusen.nova";
 
+use core::search::SearchResult;
+use executor::{ExecutionAction, SystemCommand};
+use platform::AppEntry;
 use services::{CustomCommandsIndex, Extension, ExtensionIndex, ExtensionKind, ScriptOutputMode};
 
 /// Represents the current command mode state
@@ -176,268 +179,147 @@ impl UIState {
 /// Type alias for the shared UI state handle
 type UIStateHandle = Rc<RefCell<UIState>>;
 
-// Search results that appear in the launcher
-#[derive(Debug, Clone)]
-#[allow(dead_code)] // Fields used for matching, not all directly accessed
-enum SearchResult {
-    App(services::AppEntry),
-    Command {
-        id: String,
-        name: String,
-        description: String,
-    },
-    Alias {
-        keyword: String,
-        name: String,
-        target: String,
-    },
-    Quicklink {
-        keyword: String,
-        name: String,
-        url: String,
-        has_query: bool,
-    },
-    QuicklinkWithQuery {
-        keyword: String,
-        name: String,
-        url: String,
-        query: String,
-        resolved_url: String,
-    },
-    Script {
-        id: String,
-        name: String,
-        description: String,
-        path: PathBuf,
-        has_argument: bool,
-        output_mode: ScriptOutputMode,
-    },
-    ScriptWithArgument {
-        id: String,
-        name: String,
-        description: String,
-        path: PathBuf,
-        argument: String,
-        output_mode: ScriptOutputMode,
-    },
-    // Extension commands
-    ExtensionCommand {
-        command: services::LoadedCommand,
-    },
-    ExtensionCommandWithArg {
-        command: services::LoadedCommand,
-        argument: String,
-    },
-    // Calculator
-    Calculation {
-        expression: String,
-        result: String,
-    },
-    // Clipboard history
-    ClipboardItem {
-        index: usize,
-        content: String,
-        preview: String,
-        time_ago: String,
-    },
-    // File search
-    FileResult {
-        name: String,
-        path: String,
-        is_dir: bool,
-    },
-    // Emoji picker
-    EmojiResult {
-        emoji: String,
-        name: String,
-        aliases: String,
-    },
-    // Unit converter
-    UnitConversion {
-        display: String,
-        result: String,
-    },
+/// Convert a services::AppEntry to platform::AppEntry
+fn to_platform_app(app: &services::AppEntry) -> AppEntry {
+    AppEntry {
+        id: app.id.clone(),
+        name: app.name.clone(),
+        exec: app.exec.clone(),
+        icon: app.icon.clone(),
+        description: app.description.clone(),
+        keywords: app.keywords.clone(),
+    }
 }
 
-impl SearchResult {
-    fn name(&self) -> &str {
-        match self {
-            SearchResult::App(app) => &app.name,
-            SearchResult::Command { name, .. } => name,
-            SearchResult::Alias { name, .. } => name,
-            SearchResult::Quicklink { name, .. } => name,
-            SearchResult::QuicklinkWithQuery { name, .. } => name,
-            SearchResult::Script { name, .. } => name,
-            SearchResult::ScriptWithArgument { name, .. } => name,
-            SearchResult::ExtensionCommand { command } => &command.name,
-            SearchResult::ExtensionCommandWithArg { command, .. } => &command.name,
-            SearchResult::Calculation { result, .. } => result,
-            SearchResult::ClipboardItem { preview, .. } => preview,
-            SearchResult::FileResult { name, .. } => name,
-            SearchResult::EmojiResult { name, .. } => name, // "😀 grinning" formatted
-            SearchResult::UnitConversion { result, .. } => result, // "6.21 mi"
+/// Get the action to perform when a search result is executed
+fn result_to_action(result: &SearchResult) -> ExecutionAction {
+    match result {
+        SearchResult::App(app) => ExecutionAction::LaunchApp { app: app.clone() },
+        SearchResult::Command { id, .. } => match id.as_str() {
+            "nova:settings" => ExecutionAction::OpenSettings,
+            "nova:quit" => ExecutionAction::Quit,
+            "system:lock" => ExecutionAction::SystemCommand {
+                command: SystemCommand::Lock,
+            },
+            "system:sleep" => ExecutionAction::SystemCommand {
+                command: SystemCommand::Sleep,
+            },
+            "system:logout" => ExecutionAction::SystemCommand {
+                command: SystemCommand::Logout,
+            },
+            "system:restart" => ExecutionAction::SystemCommand {
+                command: SystemCommand::Restart,
+            },
+            "system:shutdown" => ExecutionAction::SystemCommand {
+                command: SystemCommand::Shutdown,
+            },
+            _ => ExecutionAction::NeedsInput,
+        },
+        SearchResult::Alias { target, .. } => ExecutionAction::RunShellCommand {
+            command: target.clone(),
+        },
+        SearchResult::Quicklink { url, has_query, .. } => {
+            if *has_query {
+                ExecutionAction::NeedsInput
+            } else {
+                ExecutionAction::OpenUrl { url: url.clone() }
+            }
         }
-    }
-
-    fn description(&self) -> Option<&str> {
-        match self {
-            SearchResult::App(app) => app.description.as_deref(),
-            SearchResult::Command { description, .. } => Some(description),
-            SearchResult::Alias { target, .. } => Some(target),
-            SearchResult::Quicklink { url, .. } => Some(url),
-            SearchResult::QuicklinkWithQuery { resolved_url, .. } => Some(resolved_url),
-            SearchResult::Script { description, .. } => {
-                if description.is_empty() {
-                    None
-                } else {
-                    Some(description)
+        SearchResult::QuicklinkWithQuery { resolved_url, .. } => ExecutionAction::OpenUrl {
+            url: resolved_url.clone(),
+        },
+        SearchResult::Script {
+            path,
+            has_argument,
+            output_mode,
+            ..
+        } => {
+            if *has_argument {
+                ExecutionAction::NeedsInput
+            } else {
+                ExecutionAction::RunScript {
+                    path: path.clone(),
+                    argument: None,
+                    output_mode: output_mode.clone(),
                 }
             }
-            SearchResult::ScriptWithArgument { description, .. } => {
-                if description.is_empty() {
-                    None
-                } else {
-                    Some(description)
-                }
-            }
-            SearchResult::ExtensionCommand { command } => {
-                if command.description.is_empty() {
-                    None
-                } else {
-                    Some(&command.description)
-                }
-            }
-            SearchResult::ExtensionCommandWithArg { command, .. } => {
-                if command.description.is_empty() {
-                    None
-                } else {
-                    Some(&command.description)
-                }
-            }
-            SearchResult::Calculation { expression, .. } => Some(expression),
-            SearchResult::ClipboardItem { time_ago, .. } => Some(time_ago),
-            SearchResult::FileResult { path, .. } => Some(path),
-            SearchResult::EmojiResult { aliases, .. } => Some(aliases),
-            SearchResult::UnitConversion { display, .. } => Some(display), // "10 km = 6.21 mi"
         }
-    }
-
-    /// Get the action to perform when this result is executed
-    fn execution_action(&self) -> executor::ExecutionAction {
-        use executor::{ExecutionAction, SystemCommand};
-
-        match self {
-            SearchResult::App(app) => ExecutionAction::LaunchApp {
-                exec: app.exec.clone(),
-                name: app.name.clone(),
-            },
-            SearchResult::Command { id, .. } => match id.as_str() {
-                "nova:settings" => ExecutionAction::OpenSettings,
-                "nova:quit" => ExecutionAction::Quit,
-                "system:lock" => ExecutionAction::SystemCommand {
-                    command: SystemCommand::Lock,
-                },
-                "system:sleep" => ExecutionAction::SystemCommand {
-                    command: SystemCommand::Sleep,
-                },
-                "system:logout" => ExecutionAction::SystemCommand {
-                    command: SystemCommand::Logout,
-                },
-                "system:restart" => ExecutionAction::SystemCommand {
-                    command: SystemCommand::Restart,
-                },
-                "system:shutdown" => ExecutionAction::SystemCommand {
-                    command: SystemCommand::Shutdown,
-                },
-                _ => ExecutionAction::NeedsInput,
-            },
-            SearchResult::Alias { target, .. } => ExecutionAction::RunShellCommand {
-                command: target.clone(),
-            },
-            SearchResult::Quicklink { url, has_query, .. } => {
-                if *has_query {
-                    ExecutionAction::NeedsInput
-                } else {
-                    ExecutionAction::OpenUrl { url: url.clone() }
-                }
-            }
-            SearchResult::QuicklinkWithQuery { resolved_url, .. } => ExecutionAction::OpenUrl {
-                url: resolved_url.clone(),
-            },
-            SearchResult::Script {
-                path,
-                has_argument,
-                output_mode,
-                ..
-            } => {
-                if *has_argument {
-                    ExecutionAction::NeedsInput
-                } else {
-                    ExecutionAction::RunScript {
-                        path: path.clone(),
-                        argument: None,
-                        output_mode: output_mode.clone(),
-                    }
-                }
-            }
-            SearchResult::ScriptWithArgument {
-                path,
-                argument,
-                output_mode,
-                ..
-            } => ExecutionAction::RunScript {
-                path: path.clone(),
-                argument: Some(argument.clone()),
-                output_mode: output_mode.clone(),
-            },
-            SearchResult::ExtensionCommand { command } => {
-                if command.has_argument {
-                    ExecutionAction::NeedsInput
-                } else {
-                    ExecutionAction::RunExtensionCommand {
-                        command: command.clone(),
-                        argument: None,
-                    }
-                }
-            }
-            SearchResult::ExtensionCommandWithArg { command, argument } => {
+        SearchResult::ScriptWithArgument {
+            path,
+            argument,
+            output_mode,
+            ..
+        } => ExecutionAction::RunScript {
+            path: path.clone(),
+            argument: Some(argument.clone()),
+            output_mode: output_mode.clone(),
+        },
+        SearchResult::ExtensionCommand { command } => {
+            if command.has_argument {
+                ExecutionAction::NeedsInput
+            } else {
                 ExecutionAction::RunExtensionCommand {
                     command: command.clone(),
-                    argument: Some(argument.clone()),
+                    argument: None,
                 }
             }
-            SearchResult::Calculation { result, expression } => {
-                let value = result.trim_start_matches("= ");
-                ExecutionAction::CopyToClipboard {
-                    content: value.to_string(),
-                    notification: format!("{} = {}", expression, value),
-                }
-            }
-            SearchResult::ClipboardItem {
-                content, preview, ..
-            } => ExecutionAction::CopyToClipboard {
-                content: content.clone(),
-                notification: preview.clone(),
-            },
-            SearchResult::FileResult { path, .. } => {
-                let full_path = if path.starts_with("~/") {
-                    dirs::home_dir()
-                        .map(|h| format!("{}{}", h.display(), &path[1..]))
-                        .unwrap_or_else(|| path.clone())
-                } else {
-                    path.clone()
-                };
-                ExecutionAction::OpenFile { path: full_path }
-            }
-            SearchResult::EmojiResult { emoji, name, .. } => ExecutionAction::CopyToClipboard {
-                content: emoji.clone(),
-                notification: name.clone(),
-            },
-            SearchResult::UnitConversion { result, display } => ExecutionAction::CopyToClipboard {
-                content: result.clone(),
-                notification: display.clone(),
-            },
         }
+        SearchResult::ExtensionCommandWithArg { command, argument } => {
+            ExecutionAction::RunExtensionCommand {
+                command: command.clone(),
+                argument: Some(argument.clone()),
+            }
+        }
+        SearchResult::DenoCommand {
+            extension_id,
+            command_id,
+            ..
+        } => ExecutionAction::RunDenoCommand {
+            extension_id: extension_id.clone(),
+            command_id: command_id.clone(),
+            argument: None,
+        },
+        SearchResult::DenoCommandWithArg {
+            extension_id,
+            command_id,
+            argument,
+            ..
+        } => ExecutionAction::RunDenoCommand {
+            extension_id: extension_id.clone(),
+            command_id: command_id.clone(),
+            argument: Some(argument.clone()),
+        },
+        SearchResult::Calculation { result, expression } => {
+            let value = result.trim_start_matches("= ");
+            ExecutionAction::CopyToClipboard {
+                content: value.to_string(),
+                notification: format!("{} = {}", expression, value),
+            }
+        }
+        SearchResult::ClipboardItem {
+            content, preview, ..
+        } => ExecutionAction::CopyToClipboard {
+            content: content.clone(),
+            notification: preview.clone(),
+        },
+        SearchResult::FileResult { path, .. } => {
+            let full_path = if path.starts_with("~/") {
+                dirs::home_dir()
+                    .map(|h| format!("{}{}", h.display(), &path[1..]))
+                    .unwrap_or_else(|| path.clone())
+            } else {
+                path.clone()
+            };
+            ExecutionAction::OpenFile { path: full_path }
+        }
+        SearchResult::EmojiResult { emoji, name, .. } => ExecutionAction::CopyToClipboard {
+            content: emoji.clone(),
+            notification: name.clone(),
+        },
+        SearchResult::UnitConversion { result, display } => ExecutionAction::CopyToClipboard {
+            content: result.clone(),
+            notification: display.clone(),
+        },
     }
 }
 
@@ -721,7 +603,7 @@ fn search_with_commands(
 
     // 6. App results (last since there are many)
     for app in app_index.search(query) {
-        results.push(SearchResult::App(app.clone()));
+        results.push(SearchResult::App(to_platform_app(app)));
     }
 
     // Limit total results
@@ -1482,28 +1364,20 @@ fn build_ui(app: &Application) {
                 };
 
                 if let Some(result) = selected_result {
-                    use executor::ExecutionAction;
-
                     let do_hide = || {
                         ui_state_for_key
                             .borrow_mut()
                             .hide_window(&config_for_key.borrow());
                     };
 
-                    match result.execution_action() {
-                        ExecutionAction::LaunchApp { exec, name } => {
-                            // Find the app entry to use its launch method
-                            if let SearchResult::App(app) = &result {
-                                if let Err(e) = app.launch() {
-                                    eprintln!("[Nova] Launch error for {}: {}", name, e);
-                                } else {
-                                    do_hide();
-                                }
+                    match result_to_action(&result) {
+                        ExecutionAction::LaunchApp { app } => {
+                            // Use platform trait to launch the app
+                            let platform = platform::current();
+                            if let Err(e) = platform.launch_app(&app) {
+                                eprintln!("[Nova] Launch error for {}: {}", app.name, e);
                             } else {
-                                // Fallback: launch via exec string directly
-                                if Command::new("sh").args(["-c", &exec]).spawn().is_ok() {
-                                    do_hide();
-                                }
+                                do_hide();
                             }
                         }
                         ExecutionAction::OpenSettings => {
@@ -1519,13 +1393,9 @@ fn build_ui(app: &Application) {
                         }
                         ExecutionAction::SystemCommand { command } => {
                             do_hide();
-                            let (cmd, args) = command.command_args();
-                            if Command::new(cmd).args(&args).spawn().is_err() {
-                                // Fallback for logout
-                                if matches!(command, executor::SystemCommand::Logout) {
-                                    let (cmd, args) = executor::SystemCommand::logout_fallback();
-                                    let _ = Command::new(cmd).args(&args).spawn();
-                                }
+                            let platform = platform::current();
+                            if let Err(e) = platform.system_command(command) {
+                                eprintln!("[Nova] System command failed: {}", e);
                             }
                         }
                         ExecutionAction::RunShellCommand { command } => {
@@ -1550,6 +1420,19 @@ fn build_ui(app: &Application) {
                                 &extension_manager_for_key,
                                 &command,
                                 argument.as_ref(),
+                            );
+                        }
+                        ExecutionAction::RunDenoCommand {
+                            extension_id,
+                            command_id,
+                            ..
+                        } => {
+                            // Deno command execution - show notification for now
+                            // TODO: Integrate with Deno extension host
+                            do_hide();
+                            let _ = show_notification(
+                                "Deno Extension",
+                                &format!("Running {}:{}", extension_id, command_id),
                             );
                         }
                         ExecutionAction::CopyToClipboard {
