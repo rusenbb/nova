@@ -178,38 +178,37 @@ mode = "list"
 }
 
 fn generate_index_tsx(_title: &str) -> String {
-    format!(
-        r#"import {{
+    r#"import {
   List,
   Icon,
   registerCommand,
   render,
-}} from "@aspect/nova";
+} from "@aspect/nova";
 
-function MainView() {{
+function MainView() {
   return (
     <List searchBarPlaceholder="Search...">
       <List.Item
         id="hello"
         title="Hello, Nova!"
         subtitle="Welcome to your new extension"
-        icon={{Icon.system("star.fill")}}
+        icon={Icon.system("star.fill")}
       />
       <List.Item
         id="docs"
         title="Read the Docs"
         subtitle="Learn how to build extensions"
-        icon={{Icon.system("book")}}
+        icon={Icon.system("book")}
       />
     </List>
   );
-}}
+}
 
-registerCommand("index", () => {{
+registerCommand("index", () => {
   render(() => <MainView />);
-}});
+});
 "#
-    )
+    .to_string()
 }
 
 fn generate_tsconfig() -> String {

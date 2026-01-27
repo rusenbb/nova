@@ -35,7 +35,7 @@ impl LinuxPlatform {
             .filter_map(|e| e.ok())
         {
             let path = entry.path();
-            if path.extension().map_or(false, |ext| ext == "desktop") {
+            if path.extension().is_some_and(|ext| ext == "desktop") {
                 if let Some(app_entry) = Self::parse_desktop_file(path.to_path_buf()) {
                     // Skip duplicates by ID
                     if !entries.iter().any(|e| e.id == app_entry.id) {

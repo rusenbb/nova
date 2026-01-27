@@ -102,7 +102,7 @@ pub fn run_dev(path: &str) -> Result<()> {
                 // Filter for actual changes
                 let has_changes = events.iter().any(|e| {
                     matches!(e.kind, DebouncedEventKind::Any)
-                        && e.path.extension().map_or(false, |ext| {
+                        && e.path.extension().is_some_and(|ext| {
                             matches!(
                                 ext.to_str(),
                                 Some("ts") | Some("tsx") | Some("js") | Some("toml")
@@ -126,7 +126,7 @@ pub fn run_dev(path: &str) -> Result<()> {
                     // Reload manifest if nova.toml changed
                     let manifest_changed = events
                         .iter()
-                        .any(|e| e.path.file_name().map_or(false, |n| n == "nova.toml"));
+                        .any(|e| e.path.file_name().is_some_and(|n| n == "nova.toml"));
 
                     if manifest_changed {
                         match ExtensionManifest::load(&ext_dir) {
