@@ -18,6 +18,7 @@ use walkdir::WalkDir;
 /// Linux platform implementation.
 pub struct LinuxPlatform {
     /// Cached list of applications (populated on first call to discover_apps)
+    #[allow(dead_code)]
     apps_cache: Option<Vec<AppEntry>>,
 }
 
