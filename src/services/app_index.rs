@@ -98,14 +98,7 @@ impl AppIndex {
         // Add name words as keywords for better matching
         keywords.extend(name.split_whitespace().map(|s| s.to_lowercase()));
 
-        Some(AppEntry {
-            id,
-            name,
-            exec,
-            icon,
-            description,
-            keywords,
-        })
+        Some(AppEntry::new(id, name, exec, icon, description, keywords))
     }
 
     /// Search for apps matching the query

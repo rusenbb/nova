@@ -32,6 +32,39 @@ pub struct AppEntry {
     pub description: Option<String>,
     /// Keywords for search matching
     pub keywords: Vec<String>,
+    /// Cached lowercase name for fast search matching
+    #[serde(skip)]
+    pub name_lower: String,
+    /// Cached lowercase description for fast search matching
+    #[serde(skip)]
+    pub description_lower: Option<String>,
+    /// Cached lowercase keywords for fast search matching
+    #[serde(skip)]
+    pub keywords_lower: Vec<String>,
+}
+
+impl AppEntry {
+    /// Create a new AppEntry with cached lowercase fields computed.
+    pub fn new(
+        id: String,
+        name: String,
+        exec: String,
+        icon: Option<String>,
+        description: Option<String>,
+        keywords: Vec<String>,
+    ) -> Self {
+        Self {
+            name_lower: name.to_lowercase(),
+            description_lower: description.as_ref().map(|d| d.to_lowercase()),
+            keywords_lower: keywords.iter().map(|k| k.to_lowercase()).collect(),
+            id,
+            name,
+            exec,
+            icon,
+            description,
+            keywords,
+        }
+    }
 }
 
 /// System commands that can be executed.
@@ -658,14 +691,14 @@ mod tests {
 
     #[test]
     fn test_app_entry_debug_format() {
-        let app = AppEntry {
-            id: "test-app".to_string(),
-            name: "Test App".to_string(),
-            exec: "/usr/bin/test".to_string(),
-            icon: Some("/path/to/icon.png".to_string()),
-            description: Some("A test application".to_string()),
-            keywords: vec!["test".to_string(), "app".to_string()],
-        };
+        let app = AppEntry::new(
+            "test-app".to_string(),
+            "Test App".to_string(),
+            "/usr/bin/test".to_string(),
+            Some("/path/to/icon.png".to_string()),
+            Some("A test application".to_string()),
+            vec!["test".to_string(), "app".to_string()],
+        );
 
         // Should be debuggable without panic
         let debug_str = format!("{:?}", app);

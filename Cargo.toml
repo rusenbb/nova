@@ -51,6 +51,9 @@ urlencoding = "2"
 # Calculator
 meval = "0.2"
 
+# Performance
+smallvec = "1"
+
 # Extension runtime
 deno_core = "0.311"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "fs"] }

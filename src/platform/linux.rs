@@ -82,14 +82,7 @@ impl LinuxPlatform {
         // Add name words as keywords for better matching
         keywords.extend(name.split_whitespace().map(|s| s.to_lowercase()));
 
-        Some(AppEntry {
-            id,
-            name,
-            exec,
-            icon,
-            description,
-            keywords,
-        })
+        Some(AppEntry::new(id, name, exec, icon, description, keywords))
     }
 
     /// Strip field codes from exec command (%f, %u, %F, %U, etc.)

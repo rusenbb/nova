@@ -22,6 +22,12 @@ pub struct ScriptEntry {
     pub keywords: Vec<String>,
     pub has_argument: bool,
     pub output_mode: ScriptOutputMode,
+    /// Cached lowercase name for fast search matching
+    pub name_lower: String,
+    /// Cached lowercase id for fast search matching
+    pub id_lower: String,
+    /// Cached lowercase keywords for fast search matching
+    pub keywords_lower: Vec<String>,
 }
 
 pub struct CustomCommandsIndex {
@@ -86,16 +92,22 @@ impl CustomCommandsIndex {
             return None;
         }
 
+        let name = metadata.get("name").cloned().unwrap_or_else(|| id.clone());
+        let keywords: Vec<String> = metadata
+            .get("keywords")
+            .map(|k| k.split(',').map(|s| s.trim().to_string()).collect())
+            .unwrap_or_default();
+
         Some(ScriptEntry {
+            name_lower: name.to_lowercase(),
+            id_lower: id.to_lowercase(),
+            keywords_lower: keywords.iter().map(|k| k.to_lowercase()).collect(),
             id: id.clone(),
-            name: metadata.get("name").cloned().unwrap_or_else(|| id.clone()),
+            name,
             description: metadata.get("description").cloned().unwrap_or_default(),
             icon: metadata.get("icon").cloned(),
             path: path.clone(),
-            keywords: metadata
-                .get("keywords")
-                .map(|k| k.split(',').map(|s| s.trim().to_string()).collect())
-                .unwrap_or_default(),
+            keywords,
             has_argument: metadata
                 .get("argument")
                 .map(|v| v == "true")

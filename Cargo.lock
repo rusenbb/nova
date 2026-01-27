@@ -1858,6 +1858,7 @@ dependencies = [
  "serde",
  "serde_json",
  "shellexpand",
+ "smallvec",
  "tar",
  "tempfile",
  "thiserror 1.0.69",

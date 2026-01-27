@@ -436,10 +436,10 @@ impl SearchEngine {
 
         // 1. Check for alias matches (exact keyword match or partial match in keyword/name)
         for alias in &custom_commands.aliases {
-            let alias_keyword_lower = alias.keyword.to_lowercase();
-            if alias_keyword_lower == keyword
-                || alias_keyword_lower.contains(&query_lower)
-                || alias.name.to_lowercase().contains(&query_lower)
+            // Use cached lowercase values to avoid allocation in hot path
+            if alias.keyword_lower == keyword
+                || alias.keyword_lower.contains(&query_lower)
+                || alias.name_lower.contains(&query_lower)
             {
                 results.push(SearchResult::Alias {
                     keyword: alias.keyword.clone(),
@@ -517,9 +517,8 @@ impl SearchEngine {
 
         // 7. Check for quicklink matches
         for quicklink in &custom_commands.quicklinks {
-            let ql_keyword = quicklink.keyword.to_lowercase();
-
-            if ql_keyword == keyword {
+            // Use cached lowercase values to avoid allocation in hot path
+            if quicklink.keyword_lower == keyword {
                 if quicklink.has_query_placeholder() {
                     if let Some(ref q) = remaining_query {
                         results.push(SearchResult::QuicklinkWithQuery {
@@ -545,8 +544,8 @@ impl SearchEngine {
                         has_query: false,
                     });
                 }
-            } else if ql_keyword.starts_with(&keyword)
-                || quicklink.name.to_lowercase().contains(&query_lower)
+            } else if quicklink.keyword_lower.starts_with(&keyword)
+                || quicklink.name_lower.contains(&query_lower)
             {
                 results.push(SearchResult::Quicklink {
                     keyword: quicklink.keyword.clone(),
@@ -559,12 +558,13 @@ impl SearchEngine {
 
         // 8. Search scripts
         for script in &custom_commands.scripts {
-            let matches = script.name.to_lowercase().contains(&query_lower)
-                || script.id.to_lowercase().contains(&query_lower)
+            // Use cached lowercase values to avoid allocation in hot path
+            let matches = script.name_lower.contains(&query_lower)
+                || script.id_lower.contains(&query_lower)
                 || script
-                    .keywords
+                    .keywords_lower
                     .iter()
-                    .any(|k| k.to_lowercase().contains(&query_lower));
+                    .any(|k| k.contains(&query_lower));
 
             if matches {
                 if script.has_argument {
@@ -749,23 +749,21 @@ impl SearchEngine {
         let mut scored: Vec<(&AppEntry, f64)> = apps
             .iter()
             .filter_map(|entry| {
-                // Match against name
-                let name_score = self
-                    .matcher
-                    .fuzzy_match(&entry.name.to_lowercase(), &query_lower);
+                // Match against name (use cached lowercase)
+                let name_score = self.matcher.fuzzy_match(&entry.name_lower, &query_lower);
 
-                // Match against keywords
+                // Match against keywords (use cached lowercase)
                 let keyword_score = entry
-                    .keywords
+                    .keywords_lower
                     .iter()
-                    .filter_map(|kw| self.matcher.fuzzy_match(&kw.to_lowercase(), &query_lower))
+                    .filter_map(|kw| self.matcher.fuzzy_match(kw, &query_lower))
                     .max();
 
-                // Match against description
+                // Match against description (use cached lowercase)
                 let desc_score = entry
-                    .description
+                    .description_lower
                     .as_ref()
-                    .and_then(|d| self.matcher.fuzzy_match(&d.to_lowercase(), &query_lower))
+                    .and_then(|d| self.matcher.fuzzy_match(d, &query_lower))
                     .map(|s| s / 2);
 
                 // Get best score
@@ -774,8 +772,8 @@ impl SearchEngine {
                     .flatten()
                     .max()?;
 
-                // Boost exact prefix matches
-                let prefix_boost: i64 = if entry.name.to_lowercase().starts_with(&query_lower) {
+                // Boost exact prefix matches (use cached lowercase)
+                let prefix_boost: i64 = if entry.name_lower.starts_with(&query_lower) {
                     100
                 } else {
                     0

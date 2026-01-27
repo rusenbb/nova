@@ -23,6 +23,12 @@ pub struct AliasConfig {
     pub target: String,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Cached lowercase keyword for fast search matching
+    #[serde(skip)]
+    pub keyword_lower: String,
+    /// Cached lowercase name for fast search matching
+    #[serde(skip)]
+    pub name_lower: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,6 +38,12 @@ pub struct QuicklinkConfig {
     pub url: String,
     #[serde(default)]
     pub icon: Option<String>,
+    /// Cached lowercase keyword for fast search matching
+    #[serde(skip)]
+    pub keyword_lower: String,
+    /// Cached lowercase name for fast search matching
+    #[serde(skip)]
+    pub name_lower: String,
 }
 
 impl QuicklinkConfig {
@@ -174,6 +186,7 @@ impl Config {
         };
 
         config.validate();
+        config.cache_lowercase_fields();
         config
     }
 
@@ -190,6 +203,19 @@ impl Config {
 
         // Clamp description_size to reasonable range (10 - 24)
         self.appearance.description_size = self.appearance.description_size.clamp(10, 24);
+    }
+
+    /// Pre-compute lowercase values for aliases and quicklinks.
+    /// This avoids repeated .to_lowercase() calls in the search hot path.
+    fn cache_lowercase_fields(&mut self) {
+        for alias in &mut self.aliases {
+            alias.keyword_lower = alias.keyword.to_lowercase();
+            alias.name_lower = alias.name.to_lowercase();
+        }
+        for quicklink in &mut self.quicklinks {
+            quicklink.keyword_lower = quicklink.keyword.to_lowercase();
+            quicklink.name_lower = quicklink.name.to_lowercase();
+        }
     }
 
     /// Save config to file

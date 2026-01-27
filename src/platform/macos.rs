@@ -46,14 +46,14 @@ impl MacOSPlatform {
             .ok()?;
 
         if !plist_json.status.success() {
-            return Some(AppEntry {
-                id: bundle_name.to_lowercase().replace(' ', "-"),
-                name: bundle_name.clone(),
-                exec: app_path.to_string_lossy().to_string(),
-                icon: self.find_app_icon(app_path),
-                description: None,
-                keywords: vec![bundle_name.to_lowercase()],
-            });
+            return Some(AppEntry::new(
+                bundle_name.to_lowercase().replace(' ', "-"),
+                bundle_name.clone(),
+                app_path.to_string_lossy().to_string(),
+                self.find_app_icon(app_path),
+                None,
+                vec![bundle_name.to_lowercase()],
+            ));
         }
 
         let json_str = String::from_utf8_lossy(&plist_json.stdout);
@@ -87,17 +87,17 @@ impl MacOSPlatform {
             }
         }
 
-        Some(AppEntry {
-            id: bundle_id,
+        Some(AppEntry::new(
+            bundle_id,
             name,
-            exec: app_path.to_string_lossy().to_string(),
-            icon: self.find_app_icon(app_path),
-            description: plist
+            app_path.to_string_lossy().to_string(),
+            self.find_app_icon(app_path),
+            plist
                 .get("CFBundleGetInfoString")
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string()),
             keywords,
-        })
+        ))
     }
 
     fn find_app_icon(&self, app_path: &Path) -> Option<String> {
