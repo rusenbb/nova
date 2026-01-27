@@ -64,6 +64,9 @@ final class SearchPanel: NSPanel {
         resultsTableView.translatesAutoresizingMaskIntoConstraints = false
         resultsTableView.style = .plain
         resultsTableView.usesAlternatingRowBackgroundColors = false
+        resultsTableView.setAccessibilityRole(.list)
+        resultsTableView.setAccessibilityLabel("Search results")
+        resultsTableView.setAccessibilityIdentifier("searchResultsList")
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("result"))
         column.width = 600
@@ -536,6 +539,11 @@ final class ResultCellView: NSTableCellView {
         subtitleLabel.stringValue = result.subtitle
         iconView.image = loadIcon(for: result)
         shortcutLabel.stringValue = row == 0 ? "↵" : ""
+
+        // Accessibility
+        setAccessibilityRole(.cell)
+        setAccessibilityLabel(result.subtitle.isEmpty ? result.title : "\(result.title), \(result.subtitle)")
+        setAccessibilityIdentifier("searchResult-\(row)")
     }
 
     private func loadIcon(for result: SearchResult) -> NSImage? {
@@ -577,7 +585,7 @@ final class ResultCellView: NSTableCellView {
         let image = NSImage(size: size)
         image.lockFocus()
 
-        let font = NSFont.systemFont(ofSize: 24)
+        let font = Theme.shared.font(size: .xxl)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let string = NSAttributedString(string: emoji, attributes: attributes)
         let stringSize = string.size()

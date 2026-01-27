@@ -423,6 +423,13 @@ impl ExtensionHost {
         self.manifests.get(ext_id)
     }
 
+    /// Get the title of an extension by ID.
+    pub fn get_extension_title(&self, ext_id: &ExtensionId) -> Option<String> {
+        self.manifests
+            .get(ext_id)
+            .map(|m| m.extension.title.clone())
+    }
+
     /// Get all loaded manifests.
     pub fn manifests(&self) -> &HashMap<ExtensionId, ExtensionManifest> {
         &self.manifests

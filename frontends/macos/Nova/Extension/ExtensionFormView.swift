@@ -66,6 +66,11 @@ final class ExtensionFormView: NSView {
         setupLayout()
         submitButton.target = self
         submitButton.action = #selector(submitForm)
+
+        // Accessibility
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Extension form")
+        submitButton.setAccessibilityLabel("Submit form")
     }
 
     required init?(coder: NSCoder) {

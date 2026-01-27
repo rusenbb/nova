@@ -52,6 +52,10 @@ final class PermissionConsentView: NSView {
         super.init(frame: .zero)
 
         setupUI()
+
+        // Accessibility
+        setAccessibilityRole(.dialog)
+        setAccessibilityLabel("Permission consent for \(extensionTitle)")
     }
 
     required init?(coder: NSCoder) {

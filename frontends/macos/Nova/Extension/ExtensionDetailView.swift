@@ -69,6 +69,13 @@ final class ExtensionDetailView: NSView {
 
         setupLayout()
         setupWebView()
+
+        // Accessibility
+        setAccessibilityRole(.group)
+        setAccessibilityLabel("Extension detail view")
+        markdownWebView.setAccessibilityLabel("Extension content")
+        metadataStackView.setAccessibilityRole(.group)
+        metadataStackView.setAccessibilityLabel("Extension metadata")
     }
 
     required init?(coder: NSCoder) {
@@ -259,6 +266,17 @@ final class ExtensionDetailView: NSView {
             range: nil
         )
 
+        // Blockquotes
+        html = html.replacingOccurrences(
+            of: #"^> (.+)$"#,
+            with: "<blockquote>$1</blockquote>",
+            options: [.regularExpression, .anchorsMatchLines],
+            range: nil
+        )
+
+        // Process lists before paragraphs
+        html = processLists(html)
+
         // Line breaks - convert double newlines to paragraphs
         let paragraphs = html.components(separatedBy: "\n\n")
         html = paragraphs
@@ -272,6 +290,68 @@ final class ExtensionDetailView: NSView {
             .joined(separator: "\n")
 
         return html
+    }
+
+    /// Process markdown lists (unordered and ordered).
+    private func processLists(_ text: String) -> String {
+        var result = ""
+        var inUnorderedList = false
+        var inOrderedList = false
+
+        for line in text.components(separatedBy: "\n") {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // Check for unordered list item (- or *)
+            if trimmed.hasPrefix("- ") || trimmed.hasPrefix("* ") {
+                if !inUnorderedList {
+                    if inOrderedList {
+                        result += "</ol>\n"
+                        inOrderedList = false
+                    }
+                    result += "<ul>\n"
+                    inUnorderedList = true
+                }
+                let content = String(trimmed.dropFirst(2))
+                result += "<li>\(content)</li>\n"
+                continue
+            }
+
+            // Check for ordered list item (1. 2. etc.)
+            if let range = trimmed.range(of: #"^\d+\. "#, options: .regularExpression) {
+                if !inOrderedList {
+                    if inUnorderedList {
+                        result += "</ul>\n"
+                        inUnorderedList = false
+                    }
+                    result += "<ol>\n"
+                    inOrderedList = true
+                }
+                let content = String(trimmed[range.upperBound...])
+                result += "<li>\(content)</li>\n"
+                continue
+            }
+
+            // Not a list item - close any open lists
+            if inUnorderedList {
+                result += "</ul>\n"
+                inUnorderedList = false
+            }
+            if inOrderedList {
+                result += "</ol>\n"
+                inOrderedList = false
+            }
+            result += line + "\n"
+        }
+
+        // Close any remaining open lists
+        if inUnorderedList {
+            result += "</ul>\n"
+        }
+        if inOrderedList {
+            result += "</ol>\n"
+        }
+
+        return result
     }
 
     private func wrapWithStyles(_ html: String) -> String {
@@ -454,7 +534,7 @@ final class ExtensionDetailView: NSView {
         let size = NSSize(width: 16, height: 16)
         let image = NSImage(size: size)
         image.lockFocus()
-        let font = NSFont.systemFont(ofSize: 14)
+        let font = Theme.shared.font(size: .md)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let string = NSAttributedString(string: emoji, attributes: attributes)
         let stringSize = string.size()

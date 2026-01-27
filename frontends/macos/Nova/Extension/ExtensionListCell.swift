@@ -115,6 +115,11 @@ final class ExtensionListCell: NSTableCellView {
 
         // Configure accessories
         configureAccessories(item.accessories)
+
+        // Accessibility
+        setAccessibilityRole(.cell)
+        let label = item.subtitle.map { "\(item.title), \($0)" } ?? item.title
+        setAccessibilityLabel(label)
     }
 
     // MARK: - Icon Loading
@@ -161,7 +166,7 @@ final class ExtensionListCell: NSTableCellView {
         let image = NSImage(size: size)
         image.lockFocus()
 
-        let font = NSFont.systemFont(ofSize: 18)
+        let font = Theme.shared.font(size: .xl)
         let attributes: [NSAttributedString.Key: Any] = [.font: font]
         let string = NSAttributedString(string: emoji, attributes: attributes)
         let stringSize = string.size()
@@ -186,7 +191,7 @@ final class ExtensionListCell: NSTableCellView {
         NSBezierPath(ovalIn: NSRect(origin: .zero, size: size)).fill()
 
         // Draw text
-        let font = NSFont.systemFont(ofSize: 12, weight: .bold)
+        let font = Theme.shared.font(size: .sm, weight: .bold)
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.white

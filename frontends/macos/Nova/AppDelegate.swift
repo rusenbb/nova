@@ -103,7 +103,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
 
             // Get extension title for the dialog
-            let title = extensionId // TODO: Get from manifest
+            let title = core.getExtensionTitle(extensionId: extensionId) ?? extensionId
 
             core.showPermissionConsentIfNeeded(
                 extensionId: extensionId,

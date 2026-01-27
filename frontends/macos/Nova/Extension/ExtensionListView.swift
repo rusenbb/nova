@@ -52,6 +52,9 @@ final class ExtensionListView: NSView {
         tableView.translatesAutoresizingMaskIntoConstraints = false
         tableView.style = .plain
         tableView.usesAlternatingRowBackgroundColors = false
+        tableView.setAccessibilityRole(.list)
+        tableView.setAccessibilityLabel("Extension list")
+        tableView.setAccessibilityIdentifier("extensionList")
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("content"))
         column.width = 600

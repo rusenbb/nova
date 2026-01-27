@@ -49,6 +49,11 @@ final class ActionPanelBar: NSView {
         setupLayout()
         moreActionsButton.target = self
         moreActionsButton.action = #selector(showMoreActions)
+
+        // Accessibility
+        setAccessibilityRole(.toolbar)
+        setAccessibilityLabel("Action panel")
+        moreActionsButton.setAccessibilityLabel("More actions")
     }
 
     required init?(coder: NSCoder) {

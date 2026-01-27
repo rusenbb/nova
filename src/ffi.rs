@@ -877,6 +877,49 @@ struct ExtensionPermissionEntry {
 /// If the response contains permissions that need consent, show a dialog
 /// and call `nova_core_grant_permission` for each approved permission.
 ///
+/// Get the title of an extension by ID.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier
+///
+/// # Returns
+/// The extension title as a C string, or null if not found.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle and extension_id must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_get_extension_title(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || extension_id.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let core = &*handle;
+
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let deno_host = match &core.deno_host {
+        Some(host) => host,
+        None => return std::ptr::null_mut(),
+    };
+
+    match deno_host.get_extension_title(&ext_id.to_string()) {
+        Some(title) => {
+            CString::new(title)
+                .map(|s| s.into_raw())
+                .unwrap_or(std::ptr::null_mut())
+        }
+        None => std::ptr::null_mut(),
+    }
+}
+
 /// # Arguments
 /// * `handle` - A valid NovaCore handle
 /// * `extension_id` - Extension identifier

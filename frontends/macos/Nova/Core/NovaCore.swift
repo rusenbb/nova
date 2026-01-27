@@ -176,6 +176,18 @@ final class NovaCore {
 // MARK: - Permission Management
 
 extension NovaCore {
+    /// Get the title of an extension by ID.
+    func getExtensionTitle(extensionId: String) -> String? {
+        guard let handle = handle else { return nil }
+
+        guard let resultPtr = nova_core_get_extension_title(handle, extensionId) else {
+            return nil
+        }
+
+        defer { nova_string_free(resultPtr) }
+        return String(cString: resultPtr)
+    }
+
     /// Check if an extension needs permission consent.
     func checkPermissions(extensionId: String) -> PermissionQueryResponse? {
         guard let handle = handle else { return nil }
@@ -258,6 +270,9 @@ private struct ExtensionExecuteResponseInternal: Codable {
 }
 
 // MARK: - FFI Function Declarations
+
+@_silgen_name("nova_core_get_extension_title")
+func nova_core_get_extension_title(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>?
 
 @_silgen_name("nova_core_check_permissions")
 func nova_core_check_permissions(_ handle: OpaquePointer, _ extensionId: UnsafePointer<CChar>) -> UnsafeMutablePointer<CChar>?
