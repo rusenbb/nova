@@ -1,6 +1,6 @@
 //! Install command for `nova install`.
 //!
-//! Installs extensions from GitHub, URLs, or local paths.
+//! Installs extensions from the registry, GitHub, URLs, or local paths.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -8,11 +8,19 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 use console::style;
+use flate2::read::GzDecoder;
+use tar::Archive;
 
+use super::registry;
 use crate::extensions::ExtensionManifest;
 
 /// Source types for extension installation.
 enum InstallSource {
+    /// Registry: publisher/name or just name
+    Registry {
+        name: String,
+        version: Option<String>,
+    },
     /// GitHub shorthand: github:user/repo
     GitHub { user: String, repo: String },
     /// Full URL (git clone)
@@ -22,12 +30,21 @@ enum InstallSource {
 }
 
 /// Install extension from source.
-pub fn run_install(source: &str) -> Result<()> {
+pub fn run_install(source: &str, version: Option<&str>) -> Result<()> {
     // Parse the source
-    let install_source = parse_source(source)?;
+    let install_source = parse_source(source, version)?;
+
+    // Handle registry source specially
+    if let InstallSource::Registry { name, version } = &install_source {
+        return install_from_registry(name, version.as_deref());
+    }
 
     // Get or create working directory
     let work_dir = match &install_source {
+        InstallSource::Registry { .. } => {
+            // Already handled above with early return
+            unreachable!("Registry source should be handled earlier")
+        }
         InstallSource::LocalPath(path) => {
             // Use local path directly
             path.canonicalize()
@@ -145,7 +162,7 @@ pub fn run_install(source: &str) -> Result<()> {
 }
 
 /// Parse source string into InstallSource.
-fn parse_source(source: &str) -> Result<InstallSource> {
+fn parse_source(source: &str, version: Option<&str>) -> Result<InstallSource> {
     if let Some(rest) = source.strip_prefix("github:") {
         // GitHub shorthand: github:user/repo
         let parts: Vec<&str> = rest.split('/').collect();
@@ -160,9 +177,17 @@ fn parse_source(source: &str) -> Result<InstallSource> {
         // URL
         Ok(InstallSource::Url(source.to_string()))
     } else {
-        // Local path
+        // Check if it's a local path
         let path = PathBuf::from(source);
-        Ok(InstallSource::LocalPath(path))
+        if path.exists() {
+            return Ok(InstallSource::LocalPath(path));
+        }
+
+        // Otherwise, treat as registry name (publisher/name or just name)
+        Ok(InstallSource::Registry {
+            name: source.to_string(),
+            version: version.map(String::from),
+        })
     }
 }
 
@@ -313,6 +338,122 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
             fs::copy(&src_path, &dst_path)?;
         }
     }
+
+    Ok(())
+}
+
+/// Install extension from registry.
+fn install_from_registry(name: &str, version: Option<&str>) -> Result<()> {
+    // Parse publisher/name format
+    let (publisher, ext_name) = if name.contains('/') {
+        let parts: Vec<&str> = name.split('/').collect();
+        if parts.len() != 2 {
+            bail!("Invalid extension name. Use: publisher/name");
+        }
+        (parts[0], parts[1])
+    } else {
+        // Search for the extension to find publisher
+        println!(
+            "{} Searching for extension '{}'...",
+            style("→").cyan(),
+            style(name).bold()
+        );
+
+        let rt = tokio::runtime::Runtime::new()?;
+        let results = rt.block_on(registry::search(name, 1))?;
+
+        if results.is_empty() {
+            bail!("Extension '{}' not found in registry", name);
+        }
+
+        let ext = &results[0];
+        println!(
+            "{} Found {}/{}",
+            style("✓").green(),
+            style(&ext.publisher).cyan(),
+            style(&ext.name).green()
+        );
+
+        // Return owned strings to satisfy borrow checker
+        return install_from_registry(&format!("{}/{}", ext.publisher, ext.name), version);
+    };
+
+    println!(
+        "{} Installing {}/{}{}...",
+        style("→").cyan(),
+        style(publisher).cyan(),
+        style(ext_name).green(),
+        version.map(|v| format!("@{}", v)).unwrap_or_default()
+    );
+
+    // Download from registry
+    let rt = tokio::runtime::Runtime::new()?;
+    let data = rt.block_on(registry::download(publisher, ext_name, version))?;
+
+    println!("{} Downloaded {} bytes", style("✓").green(), data.len());
+
+    // Install from tarball
+    let full_name = format!("{}/{}", publisher, ext_name);
+    install_from_tarball(&data, &full_name)?;
+
+    Ok(())
+}
+
+/// Install extension from tarball data.
+pub fn install_from_tarball(data: &[u8], _name: &str) -> Result<()> {
+    // Create temp directory
+    let temp_dir = std::env::temp_dir().join(format!("nova-install-{}", std::process::id()));
+    if temp_dir.exists() {
+        fs::remove_dir_all(&temp_dir)?;
+    }
+    fs::create_dir_all(&temp_dir)?;
+
+    // Extract tarball
+    let decoder = GzDecoder::new(data);
+    let mut archive = Archive::new(decoder);
+    archive
+        .unpack(&temp_dir)
+        .context("Failed to extract package")?;
+
+    // Find nova.toml
+    let manifest_path = temp_dir.join("nova.toml");
+    if !manifest_path.exists() {
+        bail!("Invalid package: missing nova.toml");
+    }
+
+    // Load manifest
+    let manifest = ExtensionManifest::load(&temp_dir)
+        .map_err(|e| anyhow::anyhow!("Failed to load manifest: {}", e))?;
+
+    // Get extensions directory
+    let extensions_dir = get_extensions_dir()?;
+    let dest_dir = extensions_dir.join(&manifest.extension.name);
+
+    // Check if already installed
+    if dest_dir.exists() {
+        println!(
+            "{} Extension '{}' already installed. Reinstalling...",
+            style("!").yellow(),
+            manifest.extension.name
+        );
+        fs::remove_dir_all(&dest_dir)?;
+    }
+
+    // Create destination
+    fs::create_dir_all(&dest_dir)?;
+
+    // Copy files
+    install_files(&temp_dir, &dest_dir)?;
+
+    // Cleanup
+    let _ = fs::remove_dir_all(&temp_dir);
+
+    println!(
+        "{} Installed {} v{}",
+        style("✓").green().bold(),
+        style(&manifest.extension.title).cyan(),
+        style(&manifest.extension.version).yellow()
+    );
 
     Ok(())
 }
