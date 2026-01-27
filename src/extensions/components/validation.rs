@@ -6,7 +6,9 @@
 use thiserror::Error;
 
 use super::detail::DetailComponent;
-use super::form::{FormCheckbox, FormComponent, FormDatePicker, FormDropdown, FormField, FormTextField};
+use super::form::{
+    FormCheckbox, FormComponent, FormDatePicker, FormDropdown, FormField, FormTextField,
+};
 use super::list::{ListChild, ListComponent, ListItem, ListSection};
 use super::Component;
 

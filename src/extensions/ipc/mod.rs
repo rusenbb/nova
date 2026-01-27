@@ -10,4 +10,6 @@ mod types;
 
 pub use context::NovaContext;
 pub use ops::nova_extension;
-pub use types::{CommandExecutionResult, FetchMethod, FetchRequest, FetchResponse, RenderedComponent};
+pub use types::{
+    CommandExecutionResult, FetchMethod, FetchRequest, FetchResponse, RenderedComponent,
+};

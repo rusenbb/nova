@@ -243,10 +243,7 @@ fn op_nova_close_window(state: &mut OpState) -> Result<(), AnyError> {
 /// The component is deserialized to a strongly-typed Component enum and
 /// validated before being stored.
 #[op2]
-fn op_nova_render(
-    state: &mut OpState,
-    #[serde] component: Component,
-) -> Result<(), AnyError> {
+fn op_nova_render(state: &mut OpState, #[serde] component: Component) -> Result<(), AnyError> {
     // Validate the component tree
     component
         .validate()

@@ -163,9 +163,10 @@ impl ExtensionIsolate {
             return Err(ExtensionError::ExecutionError(message.clone()));
         }
 
-        let runtime = self.runtime.as_mut().ok_or_else(|| {
-            ExtensionError::ExecutionError("Runtime not initialized".to_string())
-        })?;
+        let runtime = self
+            .runtime
+            .as_mut()
+            .ok_or_else(|| ExtensionError::ExecutionError("Runtime not initialized".to_string()))?;
 
         self.state = IsolateState::Executing {
             command: command.to_string(),
@@ -250,9 +251,10 @@ impl ExtensionIsolate {
             return Err(ExtensionError::ExecutionError(message.clone()));
         }
 
-        let runtime = self.runtime.as_mut().ok_or_else(|| {
-            ExtensionError::ExecutionError("Runtime not initialized".to_string())
-        })?;
+        let runtime = self
+            .runtime
+            .as_mut()
+            .ok_or_else(|| ExtensionError::ExecutionError("Runtime not initialized".to_string()))?;
 
         self.last_active = Instant::now();
 
@@ -299,7 +301,9 @@ impl ExtensionIsolate {
         let result_str = local
             .to_string(scope)
             .map(|s| s.to_rust_string_lossy(scope))
-            .unwrap_or_else(|| r#"{"success":false,"error":"Failed to serialize result"}"#.to_string());
+            .unwrap_or_else(|| {
+                r#"{"success":false,"error":"Failed to serialize result"}"#.to_string()
+            });
 
         Ok(result_str)
     }

@@ -142,9 +142,7 @@ mod tests {
         let mut storage = ExtensionStorage::new("test-ext", temp_dir.path().to_path_buf());
 
         // Set and get
-        storage
-            .set("key1", serde_json::json!("value1"))
-            .unwrap();
+        storage.set("key1", serde_json::json!("value1")).unwrap();
         assert_eq!(
             storage.get("key1").unwrap(),
             Some(serde_json::json!("value1"))
@@ -155,7 +153,10 @@ mod tests {
 
         // Set complex value
         storage
-            .set("complex", serde_json::json!({"nested": {"array": [1, 2, 3]}}))
+            .set(
+                "complex",
+                serde_json::json!({"nested": {"array": [1, 2, 3]}}),
+            )
             .unwrap();
         assert_eq!(
             storage.get("complex").unwrap(),
@@ -177,7 +178,10 @@ mod tests {
         // Create new storage instance and verify persistence
         {
             let storage = ExtensionStorage::new("test-ext", storage_dir);
-            assert_eq!(storage.get("persistent").unwrap(), Some(serde_json::json!(42)));
+            assert_eq!(
+                storage.get("persistent").unwrap(),
+                Some(serde_json::json!(42))
+            );
         }
     }
 
@@ -186,7 +190,9 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let mut storage = ExtensionStorage::new("test-ext", temp_dir.path().to_path_buf());
 
-        storage.set("to_remove", serde_json::json!("value")).unwrap();
+        storage
+            .set("to_remove", serde_json::json!("value"))
+            .unwrap();
         assert!(storage.has("to_remove"));
 
         storage.remove("to_remove").unwrap();

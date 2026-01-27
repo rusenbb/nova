@@ -36,7 +36,9 @@ impl ExtensionManifest {
         let manifest_path = extension_dir.join("nova.toml");
 
         if !manifest_path.exists() {
-            return Err(ExtensionError::ManifestNotFound(extension_dir.to_path_buf()));
+            return Err(ExtensionError::ManifestNotFound(
+                extension_dir.to_path_buf(),
+            ));
         }
 
         let content = std::fs::read_to_string(&manifest_path)?;
@@ -376,7 +378,10 @@ default = "true"
 
         // Extension meta
         assert_eq!(manifest.extension.name, "github");
-        assert_eq!(manifest.extension.author, Some("nova-extensions".to_string()));
+        assert_eq!(
+            manifest.extension.author,
+            Some("nova-extensions".to_string())
+        );
 
         // Permissions
         assert!(manifest.permissions.clipboard);

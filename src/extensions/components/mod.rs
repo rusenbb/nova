@@ -79,46 +79,44 @@ mod tests {
             filtering: ListFiltering::Default,
             on_search_change: None,
             on_selection_change: None,
-            children: vec![
-                ListChild::Section(ListSection {
-                    title: Some("Recent".to_string()),
-                    subtitle: None,
-                    children: vec![ListItem {
-                        id: "repo-1".to_string(),
-                        title: "my-repo".to_string(),
-                        subtitle: Some("A cool project".to_string()),
-                        icon: Some(Icon::System {
-                            name: "folder.fill".to_string(),
-                        }),
-                        accessories: vec![
-                            Accessory::Tag {
-                                value: "Rust".to_string(),
-                                color: Some("#dea584".to_string()),
-                            },
-                            Accessory::Text {
-                                text: "2h ago".to_string(),
-                            },
-                        ],
-                        keywords: vec!["rust".to_string(), "cli".to_string()],
-                        actions: Some(ActionPanel {
-                            title: None,
-                            children: vec![Action {
-                                id: "open".to_string(),
-                                title: "Open in Browser".to_string(),
-                                icon: Some(Icon::System {
-                                    name: "safari".to_string(),
-                                }),
-                                shortcut: Some(Shortcut {
-                                    modifiers: vec![KeyModifier::Cmd],
-                                    key: "o".to_string(),
-                                }),
-                                style: ActionStyle::Default,
-                                on_action: Some("cb_open".to_string()),
-                            }],
-                        }),
-                    }],
-                }),
-            ],
+            children: vec![ListChild::Section(ListSection {
+                title: Some("Recent".to_string()),
+                subtitle: None,
+                children: vec![ListItem {
+                    id: "repo-1".to_string(),
+                    title: "my-repo".to_string(),
+                    subtitle: Some("A cool project".to_string()),
+                    icon: Some(Icon::System {
+                        name: "folder.fill".to_string(),
+                    }),
+                    accessories: vec![
+                        Accessory::Tag {
+                            value: "Rust".to_string(),
+                            color: Some("#dea584".to_string()),
+                        },
+                        Accessory::Text {
+                            text: "2h ago".to_string(),
+                        },
+                    ],
+                    keywords: vec!["rust".to_string(), "cli".to_string()],
+                    actions: Some(ActionPanel {
+                        title: None,
+                        children: vec![Action {
+                            id: "open".to_string(),
+                            title: "Open in Browser".to_string(),
+                            icon: Some(Icon::System {
+                                name: "safari".to_string(),
+                            }),
+                            shortcut: Some(Shortcut {
+                                modifiers: vec![KeyModifier::Cmd],
+                                key: "o".to_string(),
+                            }),
+                            style: ActionStyle::Default,
+                            on_action: Some("cb_open".to_string()),
+                        }],
+                    }),
+                }],
+            })],
         });
 
         // Serialize to JSON

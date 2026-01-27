@@ -203,11 +203,7 @@ impl ExtensionHost {
             match ExtensionManifest::load(&path) {
                 Ok(manifest) => {
                     if let Err(e) = manifest.validate() {
-                        eprintln!(
-                            "Warning: Invalid manifest in {}: {}",
-                            path.display(),
-                            e
-                        );
+                        eprintln!("Warning: Invalid manifest in {}: {}", path.display(), e);
                         continue;
                     }
 
@@ -231,7 +227,11 @@ impl ExtensionHost {
                     continue;
                 }
                 Err(e) => {
-                    eprintln!("Warning: Failed to load extension from {}: {}", path.display(), e);
+                    eprintln!(
+                        "Warning: Failed to load extension from {}: {}",
+                        path.display(),
+                        e
+                    );
                     continue;
                 }
             }

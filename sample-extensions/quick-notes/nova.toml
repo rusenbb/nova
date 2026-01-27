@@ -10,14 +10,14 @@ name = "search"
 title = "Search Notes"
 description = "Search and manage your quick notes"
 keywords = ["notes", "memo", "text", "write"]
-mode = "view"
+mode = "list"
 
 [[commands]]
 name = "create"
 title = "Create Note"
 description = "Create a new note"
 keywords = ["new", "add", "note"]
-mode = "view"
+mode = "list"
 
 [permissions]
 clipboard = true
