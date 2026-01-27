@@ -3,6 +3,9 @@
 //! This module provides a trait-based abstraction for search providers,
 //! allowing new search sources to be added cleanly.
 
+// Allow dead code - used by FFI layer but not by GTK binary.
+#![allow(dead_code)]
+
 /// A search provider that can contribute results for a query
 pub trait SearchProvider {
     /// Unique name of this provider (e.g., "apps", "calculator", "clipboard")

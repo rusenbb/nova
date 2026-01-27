@@ -18,6 +18,7 @@ pub struct AppEntry {
 
 impl AppEntry {
     /// Launch this application
+    #[allow(dead_code)]
     pub fn launch(&self) -> Result<(), String> {
         // Parse exec command - remove field codes like %f, %u, %F, %U
         let exec = self

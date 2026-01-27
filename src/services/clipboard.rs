@@ -128,21 +128,25 @@ impl ClipboardHistory {
     }
 
     /// Get item by index.
+    #[allow(dead_code)]
     pub fn get(&self, index: usize) -> Option<&ClipboardEntry> {
         self.items.get(index)
     }
 
     /// Number of items in history.
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
     /// Check if history is empty.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     /// Clear all history.
+    #[allow(dead_code)]
     pub fn clear(&mut self) {
         self.items.clear();
         self.last_content.clear();

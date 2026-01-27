@@ -7,6 +7,9 @@
 //! - notify-send for desktop notifications
 //! - systemctl/loginctl for system commands
 
+// Allow dead code for private helper methods
+#![allow(dead_code)]
+
 use super::{AppEntry, CommandResult, NotifyResult, Platform, SystemCommand};
 use std::io::Write;
 use std::path::PathBuf;
