@@ -29,7 +29,7 @@ mod tests {
 
     #[test]
     fn test_format_decimals() {
-        assert_eq!(format_number(3.14159), "3.14159");
+        assert_eq!(format_number(1.23456), "1.23456");
         assert_eq!(format_number(0.5), "0.5");
         assert_eq!(format_number(1.200), "1.2");
     }

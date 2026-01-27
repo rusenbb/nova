@@ -20,6 +20,9 @@ final class ExtensionFormView: NSView {
     private var fieldViews: [String: NSView] = [:]
     private var validationLabels: [String: NSTextField] = [:]
 
+    /// Theme reference for consistent styling
+    private let theme = Theme.shared
+
     /// Callback for triggering actions.
     var onAction: ((String, [String: Any]) -> Void)?
 
@@ -164,8 +167,8 @@ final class ExtensionFormView: NSView {
 
         // Title label
         let titleLabel = NSTextField(labelWithString: field.title)
-        titleLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        titleLabel.textColor = .labelColor
+        titleLabel.font = theme.font(size: .md, weight: .medium)
+        titleLabel.textColor = theme.foregroundColor
         container.addArrangedSubview(titleLabel)
 
         // Field control
@@ -196,8 +199,8 @@ final class ExtensionFormView: NSView {
 
         // Validation error label (hidden by default)
         let validationLabel = NSTextField(labelWithString: "")
-        validationLabel.font = .systemFont(ofSize: 11)
-        validationLabel.textColor = .systemRed
+        validationLabel.font = theme.font(size: .sm)
+        validationLabel.textColor = theme.errorColor
         validationLabel.isHidden = true
         validationLabel.translatesAutoresizingMaskIntoConstraints = false
         container.addArrangedSubview(validationLabel)
@@ -218,7 +221,7 @@ final class ExtensionFormView: NSView {
 
         textField.placeholderString = field.placeholder
         textField.stringValue = field.defaultValue ?? ""
-        textField.font = .systemFont(ofSize: 13)
+        textField.font = theme.font(size: .md)
         textField.translatesAutoresizingMaskIntoConstraints = false
         textField.delegate = self
         textField.tag = field.id.hashValue
@@ -226,14 +229,16 @@ final class ExtensionFormView: NSView {
         // Store field ID for delegate callbacks
         objc_setAssociatedObject(textField, &AssociatedKeys.fieldId, field.id, .OBJC_ASSOCIATION_RETAIN)
 
-        textField.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        // Form field height: spacing + font size + spacing
+        let fieldHeight = theme.spacingSm + CGFloat(theme.data.typography.fontSizeMd) + theme.spacingSm
+        textField.heightAnchor.constraint(equalToConstant: fieldHeight).isActive = true
 
         return textField
     }
 
     private func createDropdown(_ field: FormDropdown) -> NSView {
         let popup = NSPopUpButton()
-        popup.font = .systemFont(ofSize: 13)
+        popup.font = theme.font(size: .md)
         popup.translatesAutoresizingMaskIntoConstraints = false
 
         // Add options
@@ -255,7 +260,9 @@ final class ExtensionFormView: NSView {
         // Store field ID
         objc_setAssociatedObject(popup, &AssociatedKeys.fieldId, field.id, .OBJC_ASSOCIATION_RETAIN)
 
-        popup.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        // Form field height: spacing + font size + spacing
+        let fieldHeight = theme.spacingSm + CGFloat(theme.data.typography.fontSizeMd) + theme.spacingSm
+        popup.heightAnchor.constraint(equalToConstant: fieldHeight).isActive = true
 
         return popup
     }
@@ -263,7 +270,7 @@ final class ExtensionFormView: NSView {
     private func createCheckbox(_ field: FormCheckbox) -> NSView {
         let checkbox = NSButton(checkboxWithTitle: field.label ?? "", target: self, action: #selector(checkboxChanged(_:)))
         checkbox.state = field.defaultValue ? .on : .off
-        checkbox.font = .systemFont(ofSize: 13)
+        checkbox.font = theme.font(size: .md)
         checkbox.translatesAutoresizingMaskIntoConstraints = false
 
         // Store field ID
@@ -276,7 +283,7 @@ final class ExtensionFormView: NSView {
         let datePicker = NSDatePicker()
         datePicker.datePickerStyle = .textFieldAndStepper
         datePicker.datePickerElements = field.includeTime ? [.yearMonthDay, .hourMinute] : [.yearMonthDay]
-        datePicker.font = .systemFont(ofSize: 13)
+        datePicker.font = theme.font(size: .md)
         datePicker.translatesAutoresizingMaskIntoConstraints = false
 
         // Set default value
@@ -293,7 +300,9 @@ final class ExtensionFormView: NSView {
         // Store field ID
         objc_setAssociatedObject(datePicker, &AssociatedKeys.fieldId, field.id, .OBJC_ASSOCIATION_RETAIN)
 
-        datePicker.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        // Form field height: spacing + font size + spacing
+        let fieldHeight = theme.spacingSm + CGFloat(theme.data.typography.fontSizeMd) + theme.spacingSm
+        datePicker.heightAnchor.constraint(equalToConstant: fieldHeight).isActive = true
 
         return datePicker
     }
@@ -402,9 +411,9 @@ final class ExtensionFormView: NSView {
 
         // Highlight field
         if let textField = fieldViews[fieldId] as? NSTextField {
-            textField.layer?.borderColor = NSColor.systemRed.cgColor
+            textField.layer?.borderColor = theme.errorColor.cgColor
             textField.layer?.borderWidth = 1
-            textField.layer?.cornerRadius = 4
+            textField.layer?.cornerRadius = theme.radiusSm
         }
     }
 

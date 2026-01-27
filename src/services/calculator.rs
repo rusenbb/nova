@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn test_format_result() {
         assert_eq!(format_result(4.0), "4");
-        assert_eq!(format_result(3.14159), "3.14159");
+        assert_eq!(format_result(1.23456), "1.23456");
         assert_eq!(format_result(100.0), "100");
     }
 }

@@ -14,6 +14,7 @@ use crate::services::clipboard::ClipboardHistory;
 use crate::services::custom_commands::{CustomCommandsIndex, ScriptOutputMode};
 use crate::services::extension::{Extension, ExtensionKind};
 use crate::services::extensions::{ExtensionManager, LoadedCommand};
+use crate::services::frecency::FrecencyData;
 use crate::services::{calculator, emoji, file_search, units};
 use fuzzy_matcher::skim::SkimMatcherV2;
 use fuzzy_matcher::FuzzyMatcher;
@@ -210,6 +211,60 @@ impl SearchResult {
             _ => false,
         }
     }
+
+    /// Get a unique ID for frecency tracking.
+    ///
+    /// Returns None for stateless results like calculations that shouldn't be tracked.
+    pub fn frecency_id(&self) -> Option<&str> {
+        match self {
+            SearchResult::App(app) => Some(&app.id),
+            SearchResult::Command { id, .. } => Some(id),
+            SearchResult::Alias { keyword, .. } => Some(keyword),
+            SearchResult::Quicklink { keyword, .. } => Some(keyword),
+            SearchResult::QuicklinkWithQuery { keyword, .. } => Some(keyword),
+            SearchResult::Script { id, .. } => Some(id),
+            SearchResult::ScriptWithArgument { id, .. } => Some(id),
+            SearchResult::ExtensionCommand { command } => Some(&command.keyword),
+            SearchResult::ExtensionCommandWithArg { command, .. } => Some(&command.keyword),
+            SearchResult::DenoCommand { extension_id, .. } => {
+                // We return extension_id here; caller combines with command_id for full ID
+                Some(extension_id)
+            }
+            SearchResult::DenoCommandWithArg { extension_id, .. } => Some(extension_id),
+            // Stateless results - don't track frecency
+            SearchResult::Calculation { .. } => None,
+            SearchResult::ClipboardItem { .. } => None,
+            SearchResult::FileResult { .. } => None,
+            SearchResult::EmojiResult { .. } => None,
+            SearchResult::UnitConversion { .. } => None,
+        }
+    }
+
+    /// Get the frecency result kind for this result.
+    pub fn frecency_kind(&self) -> Option<crate::services::frecency::ResultKind> {
+        use crate::services::frecency::ResultKind;
+        match self {
+            SearchResult::App(_) => Some(ResultKind::App),
+            SearchResult::Command { .. } => Some(ResultKind::Command),
+            SearchResult::Alias { .. } => Some(ResultKind::Alias),
+            SearchResult::Quicklink { .. } | SearchResult::QuicklinkWithQuery { .. } => {
+                Some(ResultKind::Quicklink)
+            }
+            SearchResult::Script { .. } | SearchResult::ScriptWithArgument { .. } => {
+                Some(ResultKind::Script)
+            }
+            SearchResult::ExtensionCommand { .. }
+            | SearchResult::ExtensionCommandWithArg { .. }
+            | SearchResult::DenoCommand { .. }
+            | SearchResult::DenoCommandWithArg { .. } => Some(ResultKind::Extension),
+            SearchResult::ClipboardItem { .. } => Some(ResultKind::Clipboard),
+            SearchResult::FileResult { .. } => Some(ResultKind::File),
+            // Stateless - no frecency tracking
+            SearchResult::Calculation { .. }
+            | SearchResult::EmojiResult { .. }
+            | SearchResult::UnitConversion { .. } => None,
+        }
+    }
 }
 
 /// The search engine that powers Nova's search functionality.
@@ -281,12 +336,15 @@ impl SearchEngine {
     }
 
     /// Search across all sources with the given query.
+    ///
+    /// If frecency data is provided, results will be boosted by usage history.
     pub fn search(
         &self,
         apps: &[AppEntry],
         custom_commands: &CustomCommandsIndex,
         extension_manager: &ExtensionManager,
         clipboard_history: &ClipboardHistory,
+        frecency: Option<&FrecencyData>,
         query: &str,
         max_results: usize,
     ) -> Vec<SearchResult> {
@@ -507,7 +565,7 @@ impl SearchEngine {
         }
 
         // 11. App results (last since there are many)
-        let app_results = self.search_apps(apps, query);
+        let app_results = self.search_apps(apps, frecency, query);
         for app in app_results {
             results.push(SearchResult::App(app.clone()));
         }
@@ -580,14 +638,37 @@ impl SearchEngine {
         }
     }
 
-    /// Search apps using fuzzy matching.
-    fn search_apps<'a>(&self, apps: &'a [AppEntry], query: &str) -> Vec<&'a AppEntry> {
+    /// Search apps using fuzzy matching and frecency.
+    ///
+    /// When frecency data is available, the final score combines:
+    /// - 60% fuzzy match score (normalized)
+    /// - 40% frecency score
+    fn search_apps<'a>(
+        &self,
+        apps: &'a [AppEntry],
+        frecency: Option<&FrecencyData>,
+        query: &str,
+    ) -> Vec<&'a AppEntry> {
         if query.is_empty() {
+            // For empty queries, sort by frecency if available
+            if let Some(frec) = frecency {
+                let mut with_scores: Vec<_> = apps
+                    .iter()
+                    .map(|app| (app, frec.calculate(&app.id)))
+                    .collect();
+                with_scores
+                    .sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                return with_scores
+                    .into_iter()
+                    .take(8)
+                    .map(|(app, _)| app)
+                    .collect();
+            }
             return apps.iter().take(8).collect();
         }
 
         let query_lower = query.to_lowercase();
-        let mut scored: Vec<(&AppEntry, i64)> = apps
+        let mut scored: Vec<(&AppEntry, f64)> = apps
             .iter()
             .filter_map(|entry| {
                 // Match against name
@@ -616,17 +697,30 @@ impl SearchEngine {
                     .max()?;
 
                 // Boost exact prefix matches
-                let prefix_boost = if entry.name.to_lowercase().starts_with(&query_lower) {
+                let prefix_boost: i64 = if entry.name.to_lowercase().starts_with(&query_lower) {
                     100
                 } else {
                     0
                 };
 
-                Some((entry, best_score + prefix_boost))
+                let fuzzy_score = (best_score + prefix_boost) as f64;
+
+                // Combine with frecency if available
+                let final_score = if let Some(frec) = frecency {
+                    let frecency_score = frec.calculate(&entry.id);
+                    // Normalize fuzzy score (typically 0-1000) to 0-100 range
+                    let normalized_fuzzy = fuzzy_score.min(1000.0) / 10.0;
+                    // Combined: 60% fuzzy, 40% frecency
+                    0.6 * normalized_fuzzy + 0.4 * frecency_score
+                } else {
+                    fuzzy_score
+                };
+
+                Some((entry, final_score))
             })
             .collect();
 
-        scored.sort_by(|a, b| b.1.cmp(&a.1));
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
         scored.into_iter().take(8).map(|(entry, _)| entry).collect()
     }
 }

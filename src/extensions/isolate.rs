@@ -197,9 +197,19 @@ impl ExtensionIsolate {
 
                 try {{
                     const result = handler(argument);
-                    return JSON.stringify({{ result: result }});
+
+                    // Also get the current rendered component if any
+                    const component = globalThis.__nova_get_rendered_component
+                        ? globalThis.__nova_get_rendered_component()
+                        : null;
+
+                    return JSON.stringify({{
+                        success: true,
+                        result: result,
+                        component: component
+                    }});
                 }} catch (e) {{
-                    return JSON.stringify({{ error: e.message || String(e) }});
+                    return JSON.stringify({{ success: false, error: e.message || String(e) }});
                 }}
             }})()
             "#,

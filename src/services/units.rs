@@ -649,7 +649,7 @@ mod tests {
     fn test_parse_value_unit() {
         assert_eq!(parse_value_unit("10km"), Some((10.0, "km")));
         assert_eq!(parse_value_unit("10 km"), Some((10.0, "km")));
-        assert_eq!(parse_value_unit("3.14 m"), Some((3.14, "m")));
+        assert_eq!(parse_value_unit("2.5 m"), Some((2.5, "m")));
         assert_eq!(parse_value_unit("-5 c"), Some((-5.0, "c")));
     }
 

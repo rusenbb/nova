@@ -4,9 +4,14 @@
 //
 //  Swift wrapper around the Rust core via C FFI.
 //
+//  Thread Safety: This class is marked @MainActor to ensure all FFI calls
+//  execute on the main thread. The underlying Rust code is not thread-safe
+//  and expects single-threaded access to the NovaCore handle.
+//
 
 import Foundation
 
+@MainActor
 final class NovaCore {
     private var handle: OpaquePointer?
     private let decoder = JSONDecoder()

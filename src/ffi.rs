@@ -19,6 +19,7 @@ use crate::platform::{self, AppEntry, Platform};
 use crate::services::clipboard::ClipboardHistory;
 use crate::services::custom_commands::CustomCommandsIndex;
 use crate::services::extensions::{get_extensions_dir, ExtensionManager};
+use crate::services::frecency::FrecencyData;
 
 /// Opaque handle to the Nova core engine.
 ///
@@ -38,6 +39,8 @@ pub struct NovaCore {
     last_results: Vec<SearchResult>,
     /// Per-extension preferences (including background settings).
     extension_preferences: HashMap<String, HashMap<String, serde_json::Value>>,
+    /// Frecency data for ranking search results by usage.
+    frecency: FrecencyData,
 }
 
 /// JSON response wrapper for search results.
@@ -136,6 +139,10 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
         extension_preferences.insert(ext_id, prefs);
     }
 
+    // Load frecency data for smart ranking
+    let frecency = FrecencyData::load();
+    println!("[Nova] Frecency loaded: {} entries", frecency.len());
+
     let core = Box::new(NovaCore {
         platform,
         config,
@@ -147,6 +154,7 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
         deno_host,
         last_results: Vec::new(),
         extension_preferences,
+        frecency,
     });
 
     Box::into_raw(core)
@@ -160,7 +168,10 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
 #[no_mangle]
 pub unsafe extern "C" fn nova_core_free(handle: *mut NovaCore) {
     if !handle.is_null() {
-        drop(Box::from_raw(handle));
+        let mut core = Box::from_raw(handle);
+        // Flush frecency data to disk before dropping
+        core.frecency.flush();
+        drop(core);
     }
 }
 
@@ -195,12 +206,13 @@ pub unsafe extern "C" fn nova_core_search(
         Err(_) => return ptr::null_mut(),
     };
 
-    // Perform search
+    // Perform search with frecency-based ranking
     let mut results = core.search_engine.search(
         &core.apps,
         &core.custom_commands,
         &core.extension_manager,
         &core.clipboard_history,
+        Some(&core.frecency),
         query_str,
         max_results as usize,
     );
@@ -280,6 +292,13 @@ pub unsafe extern "C" fn nova_core_execute(handle: *mut NovaCore, index: u32) ->
         ..
     } = &result
     {
+        // Log frecency for Deno extension command
+        let frecency_id = format!("{}:{}", extension_id, command_id);
+        core.frecency.log_usage(
+            &frecency_id,
+            crate::services::frecency::ResultKind::Extension,
+        );
+
         if let Some(ref mut deno_host) = core.deno_host {
             match deno_host.execute_command(extension_id, command_id, None) {
                 Ok(_) => {
@@ -310,6 +329,11 @@ pub unsafe extern "C" fn nova_core_execute(handle: *mut NovaCore, index: u32) ->
                 .map(|s| s.into_raw())
                 .unwrap_or(ptr::null_mut());
         }
+    }
+
+    // Log frecency usage for this result
+    if let (Some(id), Some(kind)) = (result.frecency_id(), result.frecency_kind()) {
+        core.frecency.log_usage(id, kind);
     }
 
     // Convert SearchResult to ExecutionAction
@@ -627,20 +651,48 @@ pub unsafe extern "C" fn nova_core_execute_extension(
 
     // Execute the command
     match deno_host.execute_command(&ext_id, &cmd_id, arg.as_deref()) {
-        Ok(_result_json) => {
+        Ok(result_json) => {
             // Parse the result to get component
-            // The isolate returns a JSON string with the execution result
-            let response = ExtensionExecuteResponse {
-                success: true,
-                error: None,
-                component: None, // TODO: Extract from isolate context
-                should_close: false,
-            };
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&result_json) {
+                // Try to parse component if present
+                let component: Option<Component> = parsed
+                    .get("component")
+                    .and_then(|c| serde_json::from_value(c.clone()).ok());
 
-            let json = serde_json::to_string(&response).unwrap_or_default();
-            CString::new(json)
-                .map(|s| s.into_raw())
-                .unwrap_or(ptr::null_mut())
+                let response = ExtensionExecuteResponse {
+                    success: parsed
+                        .get("success")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(true),
+                    error: parsed
+                        .get("error")
+                        .and_then(|v| v.as_str())
+                        .map(String::from),
+                    component,
+                    should_close: parsed
+                        .get("shouldClose")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false),
+                };
+
+                let json = serde_json::to_string(&response).unwrap_or_default();
+                CString::new(json)
+                    .map(|s| s.into_raw())
+                    .unwrap_or(ptr::null_mut())
+            } else {
+                // Fallback if parsing fails
+                let response = ExtensionExecuteResponse {
+                    success: true,
+                    error: None,
+                    component: None,
+                    should_close: false,
+                };
+
+                let json = serde_json::to_string(&response).unwrap_or_default();
+                CString::new(json)
+                    .map(|s| s.into_raw())
+                    .unwrap_or(ptr::null_mut())
+            }
         }
         Err(e) => error_response(&format!("Extension execution failed: {}", e)),
     }
