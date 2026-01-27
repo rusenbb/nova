@@ -2,6 +2,9 @@
 //!
 //! Provides standardized error handling across the application.
 
+// Allow dead code - used by FFI layer but not by GTK binary.
+#![allow(dead_code)]
+
 use std::fmt;
 
 /// Errors that can occur in Nova

@@ -3,6 +3,10 @@
 //! This module contains the SearchResult enum and all search-related logic
 //! that doesn't depend on any specific platform or UI framework.
 
+// Allow dead code in this module - items are used by FFI layer and other frontends
+// but not by the GTK binary which has its own search implementation.
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 
 use crate::platform::{AppEntry, SystemCommand};

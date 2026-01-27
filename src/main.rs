@@ -132,6 +132,7 @@ impl UIState {
     }
 
     /// Get the currently selected search result
+    #[allow(dead_code)]
     fn selected_result(&self) -> Option<&SearchResult> {
         self.current_results.get(self.selected_index as usize)
     }
@@ -381,15 +382,11 @@ fn search_with_commands(
     let keyword = query_parts[0].to_lowercase();
     let remaining_query = query_parts.get(1).map(|s| s.to_string());
 
-    // 1. Check for exact alias match (highest priority)
+    // 1. Check for alias match (exact keyword or partial match in keyword/name)
     for alias in &custom_commands.aliases {
-        if alias.keyword.to_lowercase() == keyword {
-            results.push(SearchResult::Alias {
-                keyword: alias.keyword.clone(),
-                name: alias.name.clone(),
-                target: alias.target.clone(),
-            });
-        } else if alias.keyword.to_lowercase().contains(&query_lower)
+        let alias_keyword_lower = alias.keyword.to_lowercase();
+        if alias_keyword_lower == keyword
+            || alias_keyword_lower.contains(&query_lower)
             || alias.name.to_lowercase().contains(&query_lower)
         {
             results.push(SearchResult::Alias {
@@ -969,7 +966,7 @@ fn main() {
             }
             "--settings" => {
                 let app = Application::builder()
-                    .application_id(&format!("{}.settings", APP_ID))
+                    .application_id(format!("{}.settings", APP_ID))
                     .build();
 
                 app.connect_activate(|app| {
@@ -1484,13 +1481,11 @@ fn build_ui(app: &Application) {
             }
         };
         println!("[Nova] IPC listener started");
-        for stream in listener.incoming() {
-            if let Ok(mut stream) = stream {
-                let mut buf = [0u8; 6];
-                if stream.read(&mut buf).is_ok() && &buf == b"toggle" {
-                    let _ = tx.send("toggle".to_string());
-                    let _ = stream.write_all(b"ok");
-                }
+        for mut stream in listener.incoming().flatten() {
+            let mut buf = [0u8; 6];
+            if stream.read(&mut buf).is_ok() && &buf == b"toggle" {
+                let _ = tx.send("toggle".to_string());
+                let _ = stream.write_all(b"ok");
             }
         }
     });

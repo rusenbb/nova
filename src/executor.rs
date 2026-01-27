@@ -4,6 +4,9 @@
 //! when a search result is selected. The actual execution is delegated to
 //! the Platform trait implementation.
 
+// Allow dead code - items are used by FFI layer but GTK has its own execution logic.
+#![allow(dead_code)]
+
 use std::path::PathBuf;
 
 use crate::platform::{AppEntry, Platform};
