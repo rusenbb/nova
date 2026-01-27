@@ -1562,3 +1562,382 @@ fn save_background_preference(extension_id: &str, enabled: bool) -> Result<(), s
 
     std::fs::write(&prefs_path, content)
 }
+
+// ============================================================================
+// Extension Browser FFI Functions
+// ============================================================================
+
+use crate::services::browser::{BrowserClient, BrowserTab, ExtensionBrowserData};
+
+/// Get extension browser data for the "Browse Extensions" view.
+///
+/// This fetches popular extensions from the registry and combines them
+/// with installed extension status.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `tab` - Tab name: "discover", "installed", or "updates"
+/// * `search_query` - Optional search query (NULL for empty)
+///
+/// # Returns
+/// A JSON string containing ExtensionBrowserData.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_get_browser_data(
+    handle: *mut NovaCore,
+    tab: *const c_char,
+    search_query: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() {
+        return browser_error_response("Invalid handle");
+    }
+
+    let _core = &*handle;
+
+    // Parse tab
+    let tab_str = if tab.is_null() {
+        "discover"
+    } else {
+        CStr::from_ptr(tab).to_str().unwrap_or("discover")
+    };
+
+    let browser_tab = match tab_str {
+        "installed" => BrowserTab::Installed,
+        "updates" => BrowserTab::Updates,
+        _ => BrowserTab::Discover,
+    };
+
+    // Parse search query
+    let query = if search_query.is_null() {
+        String::new()
+    } else {
+        CStr::from_ptr(search_query)
+            .to_str()
+            .unwrap_or("")
+            .to_string()
+    };
+
+    // Get installed extensions
+    let installed = get_installed_extensions_list();
+
+    // Create async runtime and fetch from registry
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return browser_error_response(&format!("Failed to create runtime: {}", e)),
+    };
+
+    let client = BrowserClient::new();
+
+    // Fetch based on tab and query
+    let registry_result = rt.block_on(async {
+        if !query.is_empty() {
+            client.search(&query, 20).await
+        } else {
+            client.get_popular(20).await
+        }
+    });
+
+    let registry_extensions = match registry_result {
+        Ok(exts) => exts,
+        Err(e) => {
+            // Return partial data with error
+            let data = ExtensionBrowserData {
+                extensions: Vec::new(),
+                search_query: query,
+                loading: false,
+                tab: browser_tab,
+                error: Some(format!("Registry error: {}", e)),
+            };
+            let json = serde_json::to_string(&data).unwrap_or_default();
+            return CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut());
+        }
+    };
+
+    // Check for updates if on updates tab
+    let updates = if browser_tab == BrowserTab::Updates {
+        rt.block_on(async { client.check_updates(&installed).await })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
+    // Build browser data
+    let data = crate::services::browser::build_browser_data(
+        &registry_extensions,
+        &installed,
+        &updates,
+        browser_tab,
+        &query,
+    );
+
+    let json = serde_json::to_string(&data).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Install an extension from the registry.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `publisher` - Publisher name
+/// * `name` - Extension name
+/// * `version` - Optional version (NULL for latest)
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_install_extension(
+    handle: *mut NovaCore,
+    publisher: *const c_char,
+    name: *const c_char,
+    version: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || publisher.is_null() || name.is_null() {
+        return browser_error_response("Invalid handle or parameters");
+    }
+
+    let pub_str = match CStr::from_ptr(publisher).to_str() {
+        Ok(s) => s,
+        Err(_) => return browser_error_response("Invalid publisher encoding"),
+    };
+
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => return browser_error_response("Invalid name encoding"),
+    };
+
+    let ver_str = if version.is_null() {
+        None
+    } else {
+        CStr::from_ptr(version).to_str().ok()
+    };
+
+    // Create async runtime
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return browser_error_response(&format!("Failed to create runtime: {}", e)),
+    };
+
+    // Download from registry
+    let download_result =
+        rt.block_on(async { crate::cli::registry::download(pub_str, name_str, ver_str).await });
+
+    let data = match download_result {
+        Ok(d) => d,
+        Err(e) => return browser_error_response(&format!("Download failed: {}", e)),
+    };
+
+    // Install from tarball
+    let full_name = format!("{}/{}", pub_str, name_str);
+    match crate::cli::install::install_from_tarball(&data, &full_name) {
+        Ok(()) => {
+            // Reload extensions in the core
+            let core = &mut *handle;
+            core.extension_manager = ExtensionManager::load(&get_extensions_dir());
+
+            // Re-initialize Deno host to pick up new extension
+            if let Some(ref mut host) = core.deno_host {
+                let _ = host.scan_extensions();
+            }
+
+            let response = serde_json::json!({
+                "success": true,
+                "message": format!("Installed {}", full_name)
+            });
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => browser_error_response(&format!("Install failed: {}", e)),
+    }
+}
+
+/// Uninstall an extension.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `name` - Extension name (publisher/name format)
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// All pointers must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_uninstall_extension(
+    handle: *mut NovaCore,
+    name: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || name.is_null() {
+        return browser_error_response("Invalid handle or name");
+    }
+
+    let name_str = match CStr::from_ptr(name).to_str() {
+        Ok(s) => s,
+        Err(_) => return browser_error_response("Invalid name encoding"),
+    };
+
+    // Get extension directory
+    let extensions_dir = get_extensions_dir();
+
+    // Find the extension directory (could be just the name part after /)
+    let ext_name = name_str.split('/').next_back().unwrap_or(name_str);
+    let ext_dir = extensions_dir.join(ext_name);
+
+    if !ext_dir.exists() {
+        return browser_error_response(&format!("Extension '{}' not found", name_str));
+    }
+
+    // Remove the directory
+    match std::fs::remove_dir_all(&ext_dir) {
+        Ok(()) => {
+            // Reload extensions in the core
+            let core = &mut *handle;
+            core.extension_manager = ExtensionManager::load(&get_extensions_dir());
+
+            let response = serde_json::json!({
+                "success": true,
+                "message": format!("Uninstalled {}", name_str)
+            });
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => browser_error_response(&format!("Uninstall failed: {}", e)),
+    }
+}
+
+/// Check for extension updates.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string with available updates.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_check_extension_updates(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return browser_error_response("Invalid handle");
+    }
+
+    let installed = get_installed_extensions_list();
+
+    if installed.is_empty() {
+        let response = serde_json::json!({
+            "updates": [],
+            "count": 0
+        });
+        let json = serde_json::to_string(&response).unwrap_or_default();
+        return CString::new(json)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut());
+    }
+
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => return browser_error_response(&format!("Failed to create runtime: {}", e)),
+    };
+
+    let client = BrowserClient::new();
+    let updates_result = rt.block_on(async { client.check_updates(&installed).await });
+
+    match updates_result {
+        Ok(updates) => {
+            let response = serde_json::json!({
+                "updates": updates,
+                "count": updates.len()
+            });
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut())
+        }
+        Err(e) => browser_error_response(&format!("Update check failed: {}", e)),
+    }
+}
+
+/// Helper function to get list of installed extensions.
+fn get_installed_extensions_list() -> Vec<(String, String)> {
+    let extensions_dir = get_extensions_dir();
+    if !extensions_dir.exists() {
+        return Vec::new();
+    }
+
+    let mut installed = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(&extensions_dir) {
+        for entry in entries.filter_map(|e| e.ok()) {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+
+            let manifest_path = path.join("nova.toml");
+            if !manifest_path.exists() {
+                continue;
+            }
+
+            // Parse manifest to get name and version
+            if let Ok(content) = std::fs::read_to_string(&manifest_path) {
+                if let Ok(manifest) = toml::from_str::<toml::Value>(&content) {
+                    let default_name = entry.file_name().to_str().unwrap_or("unknown").to_string();
+
+                    let name = manifest
+                        .get("extension")
+                        .and_then(|e| e.get("name"))
+                        .and_then(|n| n.as_str())
+                        .map(String::from)
+                        .unwrap_or(default_name);
+
+                    let version = manifest
+                        .get("extension")
+                        .and_then(|e| e.get("version"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("0.0.0");
+
+                    let author = manifest
+                        .get("extension")
+                        .and_then(|e| e.get("author"))
+                        .and_then(|a| a.as_str())
+                        .unwrap_or("local");
+
+                    installed.push((format!("{}/{}", author, name), version.to_string()));
+                }
+            }
+        }
+    }
+
+    installed
+}
+
+/// Helper function to create a browser error response.
+fn browser_error_response(message: &str) -> *mut c_char {
+    let response = serde_json::json!({
+        "success": false,
+        "error": message,
+        "extensions": [],
+        "loading": false,
+        "tab": "discover"
+    });
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}

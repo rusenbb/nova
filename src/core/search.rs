@@ -290,6 +290,11 @@ impl SearchEngine {
                 description: "Open Nova settings".to_string(),
             },
             SearchResult::Command {
+                id: "nova:extensions".to_string(),
+                name: "Browse Extensions".to_string(),
+                description: "Discover and install extensions".to_string(),
+            },
+            SearchResult::Command {
                 id: "nova:quit".to_string(),
                 name: "Quit Nova".to_string(),
                 description: "Close Nova completely".to_string(),
