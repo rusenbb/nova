@@ -3,7 +3,7 @@
 use gtk::prelude::*;
 use gtk::{ApplicationWindow, Entry, Label, ListBox};
 use nova::config;
-use nova::core::search::SearchResult;
+use nova::core::search::{SearchEngine, SearchResult};
 use nova::executor::{ExecutionAction, SystemCommand};
 use nova::services::Extension;
 use std::cell::RefCell;
@@ -180,6 +180,13 @@ pub fn result_to_action(result: &SearchResult) -> ExecutionAction {
             "system:shutdown" => ExecutionAction::SystemCommand {
                 command: SystemCommand::Shutdown,
             },
+            id if id.starts_with("window:") => {
+                if let Some(position) = SearchEngine::parse_window_command(id) {
+                    ExecutionAction::SetWindowPosition { position }
+                } else {
+                    ExecutionAction::NeedsInput
+                }
+            }
             _ => ExecutionAction::NeedsInput,
         },
         SearchResult::Alias { target, .. } => ExecutionAction::RunShellCommand {

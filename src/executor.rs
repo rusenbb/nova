@@ -9,7 +9,7 @@
 
 use std::path::PathBuf;
 
-use crate::platform::{AppEntry, Platform};
+use crate::platform::{AppEntry, Platform, WindowPosition};
 use crate::services::{ExtensionManager, LoadedCommand, OutputMode, ScriptOutputMode};
 
 // Re-export for use in main.rs GTK UI
@@ -64,6 +64,9 @@ pub enum ExecutionAction {
 
     /// Open a file or directory
     OpenFile { path: String },
+
+    /// Set window position (tiling)
+    SetWindowPosition { position: WindowPosition },
 
     /// No action needed (e.g., quicklink waiting for query input)
     NeedsInput,
@@ -168,6 +171,17 @@ pub fn execute(
 
             match platform.open_file(&full_path) {
                 Ok(()) => ExecutionResult::Success,
+                Err(e) => ExecutionResult::Error(e),
+            }
+        }
+
+        ExecutionAction::SetWindowPosition { position } => {
+            // Get the focused window and set its position
+            match platform.get_focused_window() {
+                Ok(window) => match platform.set_window_position(window.id, *position) {
+                    Ok(()) => ExecutionResult::Success,
+                    Err(e) => ExecutionResult::Error(e),
+                },
                 Err(e) => ExecutionResult::Error(e),
             }
         }

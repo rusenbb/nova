@@ -447,6 +447,8 @@ fn result_to_action(result: &SearchResult) -> ExecutionAction {
                 ExecutionAction::Quit
             } else if let Some(cmd) = SearchEngine::parse_system_command(id) {
                 ExecutionAction::SystemCommand { command: cmd }
+            } else if let Some(position) = SearchEngine::parse_window_command(id) {
+                ExecutionAction::SetWindowPosition { position }
             } else {
                 ExecutionAction::NeedsInput
             }
@@ -2212,6 +2214,299 @@ fn window_error_response(message: &str) -> *mut c_char {
         window: None,
         windows: None,
         screens: None,
+    };
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+// ============================================================================
+// Frecency Management FFI Functions
+// ============================================================================
+
+use crate::services::frecency::FrecencyStats;
+
+/// JSON response for frecency operations.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FrecencyResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stats: Option<FrecencyStatsJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_items: Option<Vec<FrecencyItem>>,
+}
+
+/// JSON-friendly version of FrecencyStats.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FrecencyStatsJson {
+    total_entries: usize,
+    total_usage_count: u64,
+    max_usage_count: u32,
+    entries_by_kind: HashMap<String, usize>,
+}
+
+/// A single frecency item with score.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct FrecencyItem {
+    id: String,
+    score: f64,
+}
+
+impl From<FrecencyStats> for FrecencyStatsJson {
+    fn from(stats: FrecencyStats) -> Self {
+        Self {
+            total_entries: stats.total_entries,
+            total_usage_count: stats.total_usage_count,
+            max_usage_count: stats.max_usage_count,
+            entries_by_kind: stats
+                .entries_by_kind
+                .into_iter()
+                .map(|(k, v)| (format!("{:?}", k).to_lowercase(), v))
+                .collect(),
+        }
+    }
+}
+
+/// Get frecency usage statistics.
+///
+/// Returns statistics about tracked items including total entries,
+/// total usage count, and breakdown by result kind.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string containing FrecencyStats.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_get_frecency_stats(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return frecency_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+    let stats = core.frecency.stats();
+
+    let response = FrecencyResponse {
+        success: true,
+        error: None,
+        stats: Some(stats.into()),
+        top_items: None,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Get the top N items by frecency score.
+///
+/// Returns items sorted by their frecency score (highest first).
+/// Useful for showing "most used" items in settings.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `limit` - Maximum number of items to return
+///
+/// # Returns
+/// A JSON string containing array of items with scores.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_get_top_frecency(
+    handle: *mut NovaCore,
+    limit: u32,
+) -> *mut c_char {
+    if handle.is_null() {
+        return frecency_error_response("Invalid handle");
+    }
+
+    let core = &*handle;
+    let top = core.frecency.top_by_score(limit as usize);
+
+    let items: Vec<FrecencyItem> = top
+        .into_iter()
+        .map(|(id, score)| FrecencyItem { id, score })
+        .collect();
+
+    let response = FrecencyResponse {
+        success: true,
+        error: None,
+        stats: None,
+        top_items: Some(items),
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Clear all frecency data.
+///
+/// Resets the usage history. This cannot be undone.
+/// Useful for privacy or when the user wants to start fresh.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_clear_frecency(handle: *mut NovaCore) -> *mut c_char {
+    if handle.is_null() {
+        return frecency_error_response("Invalid handle");
+    }
+
+    let core = &mut *handle;
+    core.frecency.clear();
+
+    let response = serde_json::json!({
+        "success": true,
+        "message": "Frecency data cleared"
+    });
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Boost an item's frecency score.
+///
+/// Increases the frequency count for an item, effectively making it
+/// appear higher in search results. Use this when the user "pins"
+/// or favorites an item.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `id` - Item identifier (C string)
+/// * `multiplier` - Boost multiplier (e.g., 2.0 doubles the score)
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle and id must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_boost_frecency(
+    handle: *mut NovaCore,
+    id: *const c_char,
+    multiplier: f64,
+) -> *mut c_char {
+    if handle.is_null() || id.is_null() {
+        return frecency_error_response("Invalid handle or id");
+    }
+
+    let core = &mut *handle;
+
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => return frecency_error_response("Invalid id encoding"),
+    };
+
+    // Check if item exists
+    if core.frecency.get_entry(id_str).is_none() {
+        return frecency_error_response(&format!("Item '{}' not found in frecency data", id_str));
+    }
+
+    core.frecency.boost(id_str, multiplier);
+    core.frecency.flush(); // Persist immediately
+
+    let new_score = core.frecency.calculate(id_str);
+
+    let response = serde_json::json!({
+        "success": true,
+        "id": id_str,
+        "newScore": new_score
+    });
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Penalize an item's frecency score.
+///
+/// Decreases the frequency count for an item, effectively making it
+/// appear lower in search results. Use this when the user wants to
+/// "hide" or deprioritize an item.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `id` - Item identifier (C string)
+/// * `divisor` - Penalty divisor (e.g., 2.0 halves the score)
+///
+/// # Returns
+/// A JSON string with the result.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle and id must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_penalize_frecency(
+    handle: *mut NovaCore,
+    id: *const c_char,
+    divisor: f64,
+) -> *mut c_char {
+    if handle.is_null() || id.is_null() {
+        return frecency_error_response("Invalid handle or id");
+    }
+
+    let core = &mut *handle;
+
+    let id_str = match CStr::from_ptr(id).to_str() {
+        Ok(s) => s,
+        Err(_) => return frecency_error_response("Invalid id encoding"),
+    };
+
+    // Check if item exists
+    if core.frecency.get_entry(id_str).is_none() {
+        return frecency_error_response(&format!("Item '{}' not found in frecency data", id_str));
+    }
+
+    core.frecency.penalize(id_str, divisor);
+    core.frecency.flush(); // Persist immediately
+
+    let new_score = core.frecency.calculate(id_str);
+
+    let response = serde_json::json!({
+        "success": true,
+        "id": id_str,
+        "newScore": new_score
+    });
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Helper function to create a frecency error response.
+fn frecency_error_response(message: &str) -> *mut c_char {
+    let response = FrecencyResponse {
+        success: false,
+        error: Some(message.to_string()),
+        stats: None,
+        top_items: None,
     };
     let json = serde_json::to_string(&response).unwrap_or_default();
     CString::new(json)

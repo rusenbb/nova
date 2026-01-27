@@ -31,6 +31,25 @@ const MAX_AGE_DAYS: u64 = 90;
 /// Debounce interval for saving (in number of updates).
 const SAVE_DEBOUNCE_COUNT: u32 = 5;
 
+/// Kind-specific weight multipliers.
+///
+/// Different result types have different usage patterns:
+/// - Scripts are often reused (boosted)
+/// - Files change frequently (penalized)
+/// - Clipboard items are ephemeral (not tracked)
+fn kind_weight(kind: ResultKind) -> f64 {
+    match kind {
+        ResultKind::App => 1.0,       // Standard weighting
+        ResultKind::Script => 1.2,    // Boost scripts (reuse pattern)
+        ResultKind::Alias => 0.9,     // Slightly less weight
+        ResultKind::Quicklink => 0.7, // Decay faster
+        ResultKind::Command => 0.8,   // System commands
+        ResultKind::Extension => 1.0, // Similar to apps
+        ResultKind::File => 0.5,      // Files change often
+        ResultKind::Clipboard => 0.0, // Don't track
+    }
+}
+
 /// Type of result for categorization.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -158,10 +177,17 @@ impl FrecencyData {
     ///
     /// Returns 0.0 if the result has never been used.
     /// Higher scores indicate more frequently/recently used items.
+    /// Scores are weighted by result kind (scripts boosted, files penalized).
     pub fn calculate(&self, id: &str) -> f64 {
         let Some(entry) = self.entries.get(id) else {
             return 0.0;
         };
+
+        // Clipboard items are not tracked
+        let weight = kind_weight(entry.kind);
+        if weight == 0.0 {
+            return 0.0;
+        }
 
         let age_days = entry.age_days();
 
@@ -175,7 +201,9 @@ impl FrecencyData {
 
         // Combined score: 40% frequency, 60% recency
         // Multiply by 10 to get reasonable score magnitudes (0-100 range)
-        0.4 * freq_score * 10.0 + 0.6 * recency_score * 100.0
+        // Apply kind-specific weight
+        let base_score = 0.4 * freq_score * 10.0 + 0.6 * recency_score * 100.0;
+        base_score * weight
     }
 
     /// Record that a result was used.
@@ -245,6 +273,69 @@ impl FrecencyData {
     /// Check if there are no tracked entries.
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
+    }
+
+    /// Get the top N items by frecency score.
+    ///
+    /// Returns a vector of (id, score) pairs, sorted by score descending.
+    pub fn top_by_score(&self, limit: usize) -> Vec<(String, f64)> {
+        let mut scored: Vec<_> = self
+            .entries
+            .keys()
+            .map(|id| {
+                let score = self.calculate(id);
+                (id.clone(), score)
+            })
+            .collect();
+
+        // Sort by score descending
+        scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        scored.truncate(limit);
+        scored
+    }
+
+    /// Clear all frecency data.
+    ///
+    /// This resets the learning history. Useful for testing or user preference.
+    pub fn clear(&mut self) {
+        self.entries.clear();
+        self.save();
+    }
+
+    /// Boost an item's score by a multiplier.
+    ///
+    /// Increases the usage count to effectively boost the frecency score.
+    /// A multiplier of 2.0 doubles the frequency component.
+    pub fn boost(&mut self, id: &str, multiplier: f64) {
+        if let Some(entry) = self.entries.get_mut(id) {
+            // Boost by increasing count (affects log-scaled frequency)
+            // To double the log score, we need exp(2 * ln(count)) = count^2
+            // For a simpler boost, we multiply count directly
+            let new_count = ((entry.count as f64) * multiplier).round() as u32;
+            entry.count = new_count.max(1);
+            self.updates_since_save += 1;
+        }
+    }
+
+    /// Penalize an item's score by a divisor.
+    ///
+    /// Decreases the usage count to effectively reduce the frecency score.
+    /// A divisor of 2.0 halves the frequency component.
+    pub fn penalize(&mut self, id: &str, divisor: f64) {
+        if divisor <= 0.0 {
+            return;
+        }
+        if let Some(entry) = self.entries.get_mut(id) {
+            let new_count = ((entry.count as f64) / divisor).round() as u32;
+            entry.count = new_count.max(1);
+            self.updates_since_save += 1;
+        }
+    }
+
+    /// Get a specific entry for inspection.
+    pub fn get_entry(&self, id: &str) -> Option<&UsageEntry> {
+        self.entries.get(id)
     }
 
     /// Get usage statistics for debugging.
@@ -368,5 +459,124 @@ mod tests {
 
         assert_eq!(restored.entries.len(), 1);
         assert!(restored.entries.contains_key("test"));
+    }
+
+    #[test]
+    fn test_kind_weights() {
+        let mut data = FrecencyData::new();
+
+        // Log same usage for different kinds
+        data.log_usage("app1", ResultKind::App);
+        data.log_usage("script1", ResultKind::Script);
+        data.log_usage("file1", ResultKind::File);
+
+        let app_score = data.calculate("app1");
+        let script_score = data.calculate("script1");
+        let file_score = data.calculate("file1");
+
+        // Scripts should score higher than apps (1.2 vs 1.0)
+        assert!(
+            script_score > app_score,
+            "Script score {} should be > app score {}",
+            script_score,
+            app_score
+        );
+
+        // Files should score lower than apps (0.5 vs 1.0)
+        assert!(
+            file_score < app_score,
+            "File score {} should be < app score {}",
+            file_score,
+            app_score
+        );
+    }
+
+    #[test]
+    fn test_clipboard_not_tracked() {
+        let mut data = FrecencyData::new();
+        data.log_usage("clip1", ResultKind::Clipboard);
+
+        // Clipboard items have zero weight
+        let score = data.calculate("clip1");
+        assert_eq!(score, 0.0, "Clipboard score should be 0");
+    }
+
+    #[test]
+    fn test_top_by_score() {
+        let mut data = FrecencyData::new();
+
+        // Create items with different usage counts
+        data.log_usage("low", ResultKind::App);
+        for _ in 0..5 {
+            data.log_usage("medium", ResultKind::App);
+        }
+        for _ in 0..20 {
+            data.log_usage("high", ResultKind::App);
+        }
+
+        let top = data.top_by_score(2);
+        assert_eq!(top.len(), 2);
+        assert_eq!(top[0].0, "high");
+        assert_eq!(top[1].0, "medium");
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut data = FrecencyData::new();
+        data.log_usage("item1", ResultKind::App);
+        data.log_usage("item2", ResultKind::App);
+        assert_eq!(data.len(), 2);
+
+        data.clear();
+        assert!(data.is_empty());
+    }
+
+    #[test]
+    fn test_boost() {
+        let mut data = FrecencyData::new();
+        data.log_usage("item", ResultKind::App);
+
+        let score_before = data.calculate("item");
+        data.boost("item", 3.0); // Triple the count
+        let score_after = data.calculate("item");
+
+        assert!(
+            score_after > score_before,
+            "Boosted score {} should be > original {}",
+            score_after,
+            score_before
+        );
+    }
+
+    #[test]
+    fn test_penalize() {
+        let mut data = FrecencyData::new();
+        for _ in 0..10 {
+            data.log_usage("item", ResultKind::App);
+        }
+
+        let score_before = data.calculate("item");
+        data.penalize("item", 2.0); // Halve the count
+        let score_after = data.calculate("item");
+
+        assert!(
+            score_after < score_before,
+            "Penalized score {} should be < original {}",
+            score_after,
+            score_before
+        );
+    }
+
+    #[test]
+    fn test_get_entry() {
+        let mut data = FrecencyData::new();
+        data.log_usage("test", ResultKind::Script);
+
+        let entry = data.get_entry("test");
+        assert!(entry.is_some());
+        assert_eq!(entry.unwrap().kind, ResultKind::Script);
+        assert_eq!(entry.unwrap().count, 1);
+
+        assert!(data.get_entry("nonexistent").is_none());
     }
 }
