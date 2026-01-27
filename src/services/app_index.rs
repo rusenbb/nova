@@ -163,6 +163,11 @@ impl AppIndex {
         scored.into_iter().take(8).map(|(entry, _)| entry).collect()
     }
 
+    /// Get all indexed apps.
+    pub fn entries(&self) -> &[AppEntry] {
+        &self.entries
+    }
+
     /// Get total number of indexed apps
     #[allow(dead_code)]
     pub fn len(&self) -> usize {

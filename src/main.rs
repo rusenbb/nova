@@ -29,7 +29,7 @@ use std::time::Instant;
 
 const APP_ID: &str = "com.rusen.nova";
 
-use core::search::SearchResult;
+use core::search::{SearchEngine, SearchResult};
 use executor::{ExecutionAction, SystemCommand};
 use platform::AppEntry;
 use services::{CustomCommandsIndex, Extension, ExtensionIndex, ExtensionKind, ScriptOutputMode};
@@ -309,359 +309,6 @@ fn result_to_action(result: &SearchResult) -> ExecutionAction {
             content: result.clone(),
             notification: display.clone(),
         },
-    }
-}
-
-fn get_system_commands() -> Vec<SearchResult> {
-    vec![
-        // Nova commands
-        SearchResult::Command {
-            id: "nova:settings".to_string(),
-            name: "Settings".to_string(),
-            description: "Open Nova settings".to_string(),
-        },
-        SearchResult::Command {
-            id: "nova:quit".to_string(),
-            name: "Quit Nova".to_string(),
-            description: "Close Nova completely".to_string(),
-        },
-        // System commands
-        SearchResult::Command {
-            id: "system:lock".to_string(),
-            name: "Lock Screen".to_string(),
-            description: "Lock the screen".to_string(),
-        },
-        SearchResult::Command {
-            id: "system:sleep".to_string(),
-            name: "Sleep".to_string(),
-            description: "Put computer to sleep".to_string(),
-        },
-        SearchResult::Command {
-            id: "system:logout".to_string(),
-            name: "Log Out".to_string(),
-            description: "Log out of current session".to_string(),
-        },
-        SearchResult::Command {
-            id: "system:restart".to_string(),
-            name: "Restart".to_string(),
-            description: "Restart the computer".to_string(),
-        },
-        SearchResult::Command {
-            id: "system:shutdown".to_string(),
-            name: "Shut Down".to_string(),
-            description: "Shut down the computer".to_string(),
-        },
-    ]
-}
-
-fn search_with_commands(
-    app_index: &services::AppIndex,
-    custom_commands: &CustomCommandsIndex,
-    extension_manager: &services::ExtensionManager,
-    clipboard_history: &services::clipboard::ClipboardHistory,
-    query: &str,
-    max_results: usize,
-) -> Vec<SearchResult> {
-    let mut results = Vec::new();
-    let query_lower = query.to_lowercase();
-
-    // Split query into keyword and remaining text (avoid collect() allocation)
-    let mut query_parts = query.splitn(2, ' ');
-    let keyword = query_parts.next().unwrap_or("").to_lowercase();
-    let remaining_query = query_parts.next().map(|s| s.to_string());
-
-    // 1. Check for alias match (exact keyword or partial match in keyword/name)
-    for alias in &custom_commands.aliases {
-        let alias_keyword_lower = alias.keyword.to_lowercase();
-        if alias_keyword_lower == keyword
-            || alias_keyword_lower.contains(&query_lower)
-            || alias.name.to_lowercase().contains(&query_lower)
-        {
-            results.push(SearchResult::Alias {
-                keyword: alias.keyword.clone(),
-                name: alias.name.clone(),
-                target: alias.target.clone(),
-            });
-        }
-    }
-
-    // 1.5. Calculator - try to evaluate as math expression
-    if let Some(calc_result) = services::calculator::evaluate(query) {
-        let formatted = services::calculator::format_result(calc_result);
-        results.push(SearchResult::Calculation {
-            expression: query.to_string(),
-            result: format!("= {}", formatted),
-        });
-    }
-
-    // 1.5.1. Unit converter - try to parse as unit conversion
-    if query.contains(" to ") {
-        if let Some(conversion) = services::units::convert(query) {
-            results.push(SearchResult::UnitConversion {
-                display: conversion.display(),
-                result: conversion.result(),
-            });
-        }
-    }
-
-    // 1.6. Clipboard history - trigger on "clip", "clipboard", "paste", "history"
-    let clipboard_keywords = ["clip", "clipboard", "paste", "history"];
-    if clipboard_keywords
-        .iter()
-        .any(|kw| query_lower.starts_with(kw))
-    {
-        // Extract optional filter after the keyword
-        let filter = remaining_query.as_ref().map(|s| s.to_lowercase());
-
-        let items = if let Some(ref f) = filter {
-            clipboard_history.search(f)
-        } else {
-            clipboard_history.all()
-        };
-
-        for (idx, entry) in items.iter().take(10).enumerate() {
-            results.push(SearchResult::ClipboardItem {
-                index: idx,
-                content: entry.content.clone(),
-                preview: entry.preview(60),
-                time_ago: entry.time_ago(),
-            });
-        }
-    }
-
-    // 1.7. File search - trigger on ~ or / prefix
-    if query.starts_with('~') || query.starts_with('/') {
-        for entry in services::file_search::search_files(query, 10) {
-            let icon_prefix = if entry.is_dir { "[D] " } else { "" };
-            results.push(SearchResult::FileResult {
-                name: format!("{}{}", icon_prefix, entry.display_name()),
-                path: entry.display_path(),
-                is_dir: entry.is_dir,
-            });
-        }
-    }
-
-    // 1.8. Emoji picker - trigger on : prefix
-    if query.starts_with(':') && query.len() > 1 {
-        let emoji_query = &query[1..]; // Strip the : prefix
-        for emoji in services::emoji::search(emoji_query, 10) {
-            results.push(SearchResult::EmojiResult {
-                emoji: emoji.char.to_string(),
-                name: format!("{} {}", emoji.char, emoji.name()),
-                aliases: emoji.aliases(),
-            });
-        }
-    }
-
-    // 2. Check for quicklink matches
-    for quicklink in &custom_commands.quicklinks {
-        let ql_keyword = quicklink.keyword.to_lowercase();
-
-        if ql_keyword == keyword {
-            // Exact keyword match
-            if quicklink.has_query_placeholder() {
-                if let Some(ref q) = remaining_query {
-                    // User provided a query after keyword
-                    results.push(SearchResult::QuicklinkWithQuery {
-                        keyword: quicklink.keyword.clone(),
-                        name: format!("{}: {}", quicklink.name, q),
-                        url: quicklink.url.clone(),
-                        query: q.clone(),
-                        resolved_url: quicklink.resolve_url(q),
-                    });
-                } else {
-                    // Show as hint that query is expected
-                    results.push(SearchResult::Quicklink {
-                        keyword: quicklink.keyword.clone(),
-                        name: format!("{} (type to search)", quicklink.name),
-                        url: quicklink.url.clone(),
-                        has_query: true,
-                    });
-                }
-            } else {
-                // Simple quicklink (no query)
-                results.push(SearchResult::Quicklink {
-                    keyword: quicklink.keyword.clone(),
-                    name: quicklink.name.clone(),
-                    url: quicklink.url.clone(),
-                    has_query: false,
-                });
-            }
-        } else if ql_keyword.starts_with(&keyword)
-            || quicklink.name.to_lowercase().contains(&query_lower)
-        {
-            // Partial match - show as suggestion
-            results.push(SearchResult::Quicklink {
-                keyword: quicklink.keyword.clone(),
-                name: quicklink.name.clone(),
-                url: quicklink.url.clone(),
-                has_query: quicklink.has_query_placeholder(),
-            });
-        }
-    }
-
-    // 3. Search scripts
-    for script in &custom_commands.scripts {
-        let matches = script.name.to_lowercase().contains(&query_lower)
-            || script.id.to_lowercase().contains(&query_lower)
-            || script
-                .keywords
-                .iter()
-                .any(|k| k.to_lowercase().contains(&query_lower));
-
-        if matches {
-            if script.has_argument {
-                if let Some(ref arg) = remaining_query {
-                    results.push(SearchResult::ScriptWithArgument {
-                        id: script.id.clone(),
-                        name: format!("{}: {}", script.name, arg),
-                        description: script.description.clone(),
-                        path: script.path.clone(),
-                        argument: arg.clone(),
-                        output_mode: script.output_mode.clone(),
-                    });
-                } else {
-                    results.push(SearchResult::Script {
-                        id: script.id.clone(),
-                        name: format!("{} (type argument)", script.name),
-                        description: script.description.clone(),
-                        path: script.path.clone(),
-                        has_argument: true,
-                        output_mode: script.output_mode.clone(),
-                    });
-                }
-            } else {
-                results.push(SearchResult::Script {
-                    id: script.id.clone(),
-                    name: script.name.clone(),
-                    description: script.description.clone(),
-                    path: script.path.clone(),
-                    has_argument: false,
-                    output_mode: script.output_mode.clone(),
-                });
-            }
-        }
-    }
-
-    // 4. System commands
-    for cmd in get_system_commands() {
-        if cmd.name().to_lowercase().contains(&query_lower)
-            || cmd
-                .description()
-                .map(|d| d.to_lowercase().contains(&query_lower))
-                .unwrap_or(false)
-        {
-            results.push(cmd);
-        }
-    }
-
-    // 5. Extension commands (before apps so they're not truncated)
-    for cmd in extension_manager.search_commands(&query_lower) {
-        let cmd_keyword = cmd.keyword.to_lowercase();
-
-        if cmd_keyword == keyword {
-            // Exact keyword match
-            if cmd.has_argument {
-                if let Some(ref arg) = remaining_query {
-                    results.push(SearchResult::ExtensionCommandWithArg {
-                        command: cmd.clone(),
-                        argument: arg.clone(),
-                    });
-                } else {
-                    results.push(SearchResult::ExtensionCommand {
-                        command: cmd.clone(),
-                    });
-                }
-            } else {
-                results.push(SearchResult::ExtensionCommand {
-                    command: cmd.clone(),
-                });
-            }
-        } else if cmd_keyword.starts_with(&keyword)
-            || cmd.name.to_lowercase().contains(&query_lower)
-        {
-            results.push(SearchResult::ExtensionCommand {
-                command: cmd.clone(),
-            });
-        }
-    }
-
-    // 6. App results (last since there are many)
-    for app in app_index.search(query) {
-        results.push(SearchResult::App(app.clone()));
-    }
-
-    // Limit total results
-    results.truncate(max_results);
-    results
-}
-
-/// Search within a specific command mode context
-fn search_in_command_mode(
-    mode_state: &CommandModeState,
-    query: &str,
-    _max_results: usize,
-) -> Vec<SearchResult> {
-    let Some(ref ext) = mode_state.active_extension else {
-        return Vec::new();
-    };
-
-    match &ext.kind {
-        ExtensionKind::Quicklink { url, .. } => {
-            if query.is_empty() {
-                // Show hint when no query entered yet
-                vec![SearchResult::Quicklink {
-                    keyword: ext.keyword.clone(),
-                    name: format!("Type to search {}", ext.name),
-                    url: url.clone(),
-                    has_query: true,
-                }]
-            } else {
-                // Show resolved result with query
-                let resolved = url.replace("{query}", &urlencoding::encode(query));
-                vec![SearchResult::QuicklinkWithQuery {
-                    keyword: ext.keyword.clone(),
-                    name: format!("{}: {}", ext.name, query),
-                    url: url.clone(),
-                    query: query.to_string(),
-                    resolved_url: resolved,
-                }]
-            }
-        }
-        ExtensionKind::Script {
-            path,
-            output_mode,
-            description,
-            ..
-        } => {
-            if query.is_empty() {
-                vec![SearchResult::Script {
-                    id: ext.keyword.clone(),
-                    name: format!("{} (type argument)", ext.name),
-                    description: description.clone(),
-                    path: path.clone(),
-                    has_argument: true,
-                    output_mode: output_mode.clone(),
-                }]
-            } else {
-                vec![SearchResult::ScriptWithArgument {
-                    id: ext.keyword.clone(),
-                    name: format!("{}: {}", ext.name, query),
-                    description: description.clone(),
-                    path: path.clone(),
-                    argument: query.to_string(),
-                    output_mode: output_mode.clone(),
-                }]
-            }
-        }
-        ExtensionKind::Alias { target } => {
-            // Aliases don't take queries, just show the alias
-            vec![SearchResult::Alias {
-                keyword: ext.keyword.clone(),
-                name: ext.name.clone(),
-                target: target.clone(),
-            }]
-        }
     }
 }
 
@@ -1060,7 +707,8 @@ fn build_ui(app: &Application) {
         eprintln!("[Nova] Failed to set autostart: {}", e);
     }
 
-    // Initialize app index, custom commands, extensions, and clipboard history
+    // Initialize search engine, app index, custom commands, extensions, and clipboard history
+    let search_engine = Rc::new(SearchEngine::new());
     let app_index = Rc::new(AppIndex::new());
     let custom_commands = Rc::new(RefCell::new(CustomCommandsIndex::new(&config.borrow())));
     let extension_manager = Rc::new(services::ExtensionManager::load(
@@ -1199,6 +847,7 @@ fn build_ui(app: &Application) {
 
     // Update results when search text changes
     let ui_state_for_search = ui_state.clone();
+    let search_engine_search = search_engine.clone();
     let app_index_search = app_index.clone();
     let custom_commands_search = custom_commands.clone();
     let extension_manager_search = extension_manager.clone();
@@ -1223,7 +872,7 @@ fn build_ui(app: &Application) {
                     state.enter_command_mode(ext.clone());
 
                     // Show empty state results for command mode
-                    let results = search_in_command_mode(&state.command_mode, "", max_results);
+                    let results = search_engine_search.search_in_command_mode(&ext, "", max_results);
                     state.update_results(results);
                     return;
                 }
@@ -1231,11 +880,11 @@ fn build_ui(app: &Application) {
         }
 
         // Perform search based on mode
-        let results = if state.command_mode.is_active() {
-            search_in_command_mode(&state.command_mode, &query, max_results)
+        let results = if let Some(ref ext) = state.command_mode.active_extension {
+            search_engine_search.search_in_command_mode(ext, &query, max_results)
         } else {
-            search_with_commands(
-                &app_index_search,
+            search_engine_search.search(
+                app_index_search.entries(),
                 &custom_commands_search.borrow(),
                 &extension_manager_search,
                 &clipboard_history_search.borrow(),
@@ -1251,6 +900,7 @@ fn build_ui(app: &Application) {
     let ui_state_for_key = ui_state.clone();
     let app_for_key = app.clone();
     let config_for_key = config_ref.clone();
+    let search_engine_for_key = search_engine.clone();
     let app_index_for_key = app_index.clone();
     let custom_commands_for_key = custom_commands.clone();
     let extension_index_for_key = extension_index.clone();
@@ -1287,8 +937,8 @@ fn build_ui(app: &Application) {
                             {
                                 if ext.accepts_query() {
                                     state.enter_command_mode(ext.clone());
-                                    let results = search_in_command_mode(
-                                        &state.command_mode,
+                                    let results = search_engine_for_key.search_in_command_mode(
+                                        &ext,
                                         "",
                                         max_results,
                                     );
@@ -1304,8 +954,8 @@ fn build_ui(app: &Application) {
                 let mut state = ui_state_for_key.borrow_mut();
                 if state.command_mode.is_active() && state.entry.text().is_empty() {
                     state.exit_command_mode();
-                    let results = search_with_commands(
-                        &app_index_for_key,
+                    let results = search_engine_for_key.search(
+                        app_index_for_key.entries(),
                         &custom_commands_for_key.borrow(),
                         &extension_manager_for_key,
                         &clipboard_history_for_key.borrow(),
@@ -1323,8 +973,8 @@ fn build_ui(app: &Application) {
                     // First Escape: exit command mode, don't hide window
                     state.exit_command_mode();
                     state.clear_entry();
-                    let results = search_with_commands(
-                        &app_index_for_key,
+                    let results = search_engine_for_key.search(
+                        app_index_for_key.entries(),
                         &custom_commands_for_key.borrow(),
                         &extension_manager_for_key,
                         &clipboard_history_for_key.borrow(),
@@ -1480,6 +1130,7 @@ fn build_ui(app: &Application) {
 
     // Poll for IPC messages (toggle window visibility)
     let ui_state_for_ipc = ui_state.clone();
+    let search_engine_for_ipc = search_engine.clone();
     let app_index_for_ipc = app_index.clone();
     let custom_commands_for_ipc = custom_commands.clone();
     let extension_manager_for_ipc = extension_manager.clone();
@@ -1495,8 +1146,8 @@ fn build_ui(app: &Application) {
                 state.hide_window(&config_for_ipc.borrow());
             } else {
                 // Show initial results (apps only when empty query)
-                let results = search_with_commands(
-                    &app_index_for_ipc,
+                let results = search_engine_for_ipc.search(
+                    app_index_for_ipc.entries(),
                     &custom_commands_for_ipc.borrow(),
                     &extension_manager_for_ipc,
                     &clipboard_history_for_ipc.borrow(),
