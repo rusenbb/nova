@@ -308,6 +308,80 @@ impl ExtensionIsolate {
         Ok(result_str)
     }
 
+    /// Execute the background handler for this extension.
+    ///
+    /// This calls the extension's `background()` function if it exists.
+    /// Background handlers are called periodically by the BackgroundScheduler.
+    ///
+    /// # Returns
+    /// A JSON string with the result, or an error if the handler doesn't exist
+    /// or fails to execute.
+    pub fn execute_background(&mut self) -> ExtensionResult<String> {
+        // Check state
+        if self.state == IsolateState::Unloaded {
+            return Err(ExtensionError::ExecutionError(
+                "Isolate not loaded. Call load() first.".to_string(),
+            ));
+        }
+
+        if let IsolateState::Error { message } = &self.state {
+            return Err(ExtensionError::ExecutionError(message.clone()));
+        }
+
+        let runtime = self
+            .runtime
+            .as_mut()
+            .ok_or_else(|| ExtensionError::ExecutionError("Runtime not initialized".to_string()))?;
+
+        self.last_active = Instant::now();
+
+        // Build the background invocation script
+        let background_script = r#"
+            (function() {
+                // Check for registered background handler
+                if (typeof globalThis.__nova_background !== 'function') {
+                    return JSON.stringify({ success: false, error: "No background handler registered" });
+                }
+
+                try {
+                    const result = globalThis.__nova_background();
+
+                    // Handle async results (Promises)
+                    if (result && typeof result.then === 'function') {
+                        // Note: For now, we don't support async background handlers
+                        // This would require async runtime execution
+                        return JSON.stringify({
+                            success: false,
+                            error: "Async background handlers not yet supported"
+                        });
+                    }
+
+                    return JSON.stringify({ success: true, result: result });
+                } catch (e) {
+                    return JSON.stringify({ success: false, error: e.message || String(e) });
+                }
+            })()
+        "#;
+
+        let result = runtime
+            .execute_script("<background>", background_script.to_string())
+            .map_err(|e| {
+                ExtensionError::ExecutionError(format!("Background execution failed: {}", e))
+            })?;
+
+        // Convert result to string
+        let scope = &mut runtime.handle_scope();
+        let local = deno_core::v8::Local::new(scope, result);
+        let result_str = local
+            .to_string(scope)
+            .map(|s| s.to_rust_string_lossy(scope))
+            .unwrap_or_else(|| {
+                r#"{"success":false,"error":"Failed to serialize result"}"#.to_string()
+            });
+
+        Ok(result_str)
+    }
+
     /// Get the runtime for direct operations (used by host for async ops in Phase 2).
     #[allow(dead_code)]
     pub fn runtime_mut(&mut self) -> Option<&mut JsRuntime> {

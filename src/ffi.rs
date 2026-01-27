@@ -5,6 +5,7 @@
 //!
 //! All complex data types are serialized as JSON strings for cross-language compatibility.
 
+use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
@@ -35,6 +36,8 @@ pub struct NovaCore {
     deno_host: Option<ExtensionHost>,
     /// Cached search results for `nova_core_execute()`
     last_results: Vec<SearchResult>,
+    /// Per-extension preferences (including background settings).
+    extension_preferences: HashMap<String, HashMap<String, serde_json::Value>>,
 }
 
 /// JSON response wrapper for search results.
@@ -118,6 +121,21 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
         }
     };
 
+    // Load background preferences
+    let bg_prefs = load_background_preferences();
+    let mut extension_preferences: HashMap<String, HashMap<String, serde_json::Value>> =
+        HashMap::new();
+
+    // Convert background preferences to extension preferences format
+    for (ext_id, enabled) in bg_prefs.enabled {
+        let mut prefs = HashMap::new();
+        prefs.insert(
+            "__background_enabled".to_string(),
+            serde_json::json!(enabled),
+        );
+        extension_preferences.insert(ext_id, prefs);
+    }
+
     let core = Box::new(NovaCore {
         platform,
         config,
@@ -128,6 +146,7 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
         clipboard_history,
         deno_host,
         last_results: Vec::new(),
+        extension_preferences,
     });
 
     Box::into_raw(core)
@@ -1160,4 +1179,334 @@ fn permission_error_response(message: &str) -> *mut c_char {
     CString::new(json)
         .map(|s| s.into_raw())
         .unwrap_or(ptr::null_mut())
+}
+
+// ============================================================================
+// Background Scheduler FFI Functions
+// ============================================================================
+
+/// JSON response for background operations.
+#[derive(serde::Serialize)]
+struct BackgroundResponse {
+    success: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    power_state: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    enabled: Option<bool>,
+}
+
+/// Enable or disable background execution for an extension.
+///
+/// This is a user preference that persists across sessions.
+/// Even if an extension has background enabled in its manifest,
+/// the user can disable it.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier (C string)
+/// * `enabled` - Whether to enable (1) or disable (0) background
+///
+/// # Returns
+/// A JSON string with the result. The caller must free this
+/// string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle and extension_id must be valid pointers.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_set_background_enabled(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+    enabled: i32,
+) -> *mut c_char {
+    if handle.is_null() || extension_id.is_null() {
+        let response = BackgroundResponse {
+            success: false,
+            error: Some("Invalid handle or extension ID".to_string()),
+            power_state: None,
+            enabled: None,
+        };
+        let json = serde_json::to_string(&response).unwrap_or_default();
+        return CString::new(json)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut());
+    }
+
+    let core = &mut *handle;
+
+    // Convert extension ID
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            let response = BackgroundResponse {
+                success: false,
+                error: Some("Invalid extension ID encoding".to_string()),
+                power_state: None,
+                enabled: None,
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            return CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut());
+        }
+    };
+
+    let enabled_bool = enabled != 0;
+
+    // For now, we store the setting in the extension host's preferences
+    // In a full implementation, this would use the BackgroundScheduler
+    // but that requires async runtime integration
+
+    // Store the preference
+    if !core.extension_preferences.contains_key(&ext_id) {
+        core.extension_preferences
+            .insert(ext_id.clone(), std::collections::HashMap::new());
+    }
+
+    if let Some(prefs) = core.extension_preferences.get_mut(&ext_id) {
+        prefs.insert(
+            "__background_enabled".to_string(),
+            serde_json::json!(enabled_bool),
+        );
+    }
+
+    // Persist to disk
+    let _ = save_background_preference(&ext_id, enabled_bool);
+
+    let response = BackgroundResponse {
+        success: true,
+        error: None,
+        power_state: None,
+        enabled: Some(enabled_bool),
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Check if background execution is enabled for an extension.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+/// * `extension_id` - Extension identifier (C string)
+///
+/// # Returns
+/// A JSON string with the result including the enabled status.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle and extension_id must be valid pointers.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_is_background_enabled(
+    handle: *mut NovaCore,
+    extension_id: *const c_char,
+) -> *mut c_char {
+    if handle.is_null() || extension_id.is_null() {
+        let response = BackgroundResponse {
+            success: false,
+            error: Some("Invalid handle or extension ID".to_string()),
+            power_state: None,
+            enabled: None,
+        };
+        let json = serde_json::to_string(&response).unwrap_or_default();
+        return CString::new(json)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut());
+    }
+
+    let core = &*handle;
+
+    // Convert extension ID
+    let ext_id = match CStr::from_ptr(extension_id).to_str() {
+        Ok(s) => s.to_string(),
+        Err(_) => {
+            let response = BackgroundResponse {
+                success: false,
+                error: Some("Invalid extension ID encoding".to_string()),
+                power_state: None,
+                enabled: None,
+            };
+            let json = serde_json::to_string(&response).unwrap_or_default();
+            return CString::new(json)
+                .map(|s| s.into_raw())
+                .unwrap_or(ptr::null_mut());
+        }
+    };
+
+    // Check manifest first - if no background config, it's not available
+    let has_background = core
+        .deno_host
+        .as_ref()
+        .and_then(|h| h.get_manifest(&ext_id))
+        .map(|m| m.background.is_some() && m.permissions.background)
+        .unwrap_or(false);
+
+    if !has_background {
+        let response = BackgroundResponse {
+            success: true,
+            error: None,
+            power_state: None,
+            enabled: Some(false),
+        };
+        let json = serde_json::to_string(&response).unwrap_or_default();
+        return CString::new(json)
+            .map(|s| s.into_raw())
+            .unwrap_or(ptr::null_mut());
+    }
+
+    // Check user preference (default to true if manifest has background)
+    let enabled = core
+        .extension_preferences
+        .get(&ext_id)
+        .and_then(|prefs| prefs.get("__background_enabled"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true); // Default to enabled if manifest has background
+
+    let response = BackgroundResponse {
+        success: true,
+        error: None,
+        power_state: None,
+        enabled: Some(enabled),
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// Get the current power state (AC, Battery, or Unknown).
+///
+/// # Returns
+/// A JSON string with the power state.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// No safety requirements.
+#[no_mangle]
+pub extern "C" fn nova_core_get_power_state() -> *mut c_char {
+    use crate::extensions::background::detect_power_state;
+    use crate::extensions::PowerState;
+
+    let power_state = detect_power_state();
+    let state_str = match power_state {
+        PowerState::AcPower => "ac",
+        PowerState::Battery => "battery",
+        PowerState::Unknown => "unknown",
+    };
+
+    let response = BackgroundResponse {
+        success: true,
+        error: None,
+        power_state: Some(state_str.to_string()),
+        enabled: None,
+    };
+
+    let json = serde_json::to_string(&response).unwrap_or_default();
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+/// List all extensions with background execution configured.
+///
+/// # Arguments
+/// * `handle` - A valid NovaCore handle
+///
+/// # Returns
+/// A JSON string with an array of extension IDs that have background configured.
+/// The caller must free this string using `nova_string_free()`.
+///
+/// # Safety
+/// The handle must be valid.
+#[no_mangle]
+pub unsafe extern "C" fn nova_core_list_background_extensions(
+    handle: *mut NovaCore,
+) -> *mut c_char {
+    if handle.is_null() {
+        return ptr::null_mut();
+    }
+
+    let core = &*handle;
+
+    let extensions: Vec<serde_json::Value> = if let Some(ref host) = core.deno_host {
+        host.extensions_with_background()
+            .into_iter()
+            .map(|(id, config)| {
+                // Check user preference
+                let user_enabled = core
+                    .extension_preferences
+                    .get(&id)
+                    .and_then(|prefs| prefs.get("__background_enabled"))
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true);
+
+                serde_json::json!({
+                    "extensionId": id,
+                    "interval": config.interval,
+                    "runOnLoad": config.run_on_load,
+                    "userEnabled": user_enabled
+                })
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+
+    let json = serde_json::to_string(&extensions).unwrap_or_else(|_| "[]".to_string());
+    CString::new(json)
+        .map(|s| s.into_raw())
+        .unwrap_or(ptr::null_mut())
+}
+
+// ============================================================================
+// Background Settings Persistence
+// ============================================================================
+
+/// Preferences for extension background execution.
+#[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
+struct ExtensionBackgroundPrefs {
+    enabled: std::collections::HashMap<String, bool>,
+}
+
+/// Load background preferences from disk.
+fn load_background_preferences() -> ExtensionBackgroundPrefs {
+    let prefs_path = dirs::data_dir()
+        .map(|d| d.join("nova").join("background").join("preferences.json"))
+        .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/background/preferences.json"));
+
+    if !prefs_path.exists() {
+        return ExtensionBackgroundPrefs::default();
+    }
+
+    match std::fs::read_to_string(&prefs_path) {
+        Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
+        Err(_) => ExtensionBackgroundPrefs::default(),
+    }
+}
+
+/// Save a single background preference.
+fn save_background_preference(extension_id: &str, enabled: bool) -> Result<(), std::io::Error> {
+    let prefs_dir = dirs::data_dir()
+        .map(|d| d.join("nova").join("background"))
+        .unwrap_or_else(|| std::path::PathBuf::from("~/.nova/background"));
+
+    std::fs::create_dir_all(&prefs_dir)?;
+
+    let prefs_path = prefs_dir.join("preferences.json");
+
+    // Load existing preferences
+    let mut prefs = load_background_preferences();
+
+    // Update
+    prefs.enabled.insert(extension_id.to_string(), enabled);
+
+    // Save
+    let content = serde_json::to_string_pretty(&prefs)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
+
+    std::fs::write(&prefs_path, content)
 }
