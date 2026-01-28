@@ -51,11 +51,13 @@ final class ExtensionFormView: NSView {
         loadingIndicator.translatesAutoresizingMaskIntoConstraints = false
         loadingIndicator.isHidden = true
 
-        // Submit button
+        // Submit button - styled to match action panel
         submitButton = NSButton(title: "Submit", target: nil, action: nil)
         submitButton.bezelStyle = .rounded
         submitButton.keyEquivalent = "\r" // Return key
         submitButton.translatesAutoresizingMaskIntoConstraints = false
+        submitButton.font = theme.font(size: .md, weight: .medium)
+        submitButton.controlSize = .large
 
         // Action panel bar
         actionPanelBar = ActionPanelBar()
@@ -143,16 +145,27 @@ final class ExtensionFormView: NSView {
             fieldView.widthAnchor.constraint(equalTo: contentStackView.widthAnchor).isActive = true
         }
 
-        // Add submit button
-        let buttonContainer = NSView()
+        // Add submit button with shortcut hint
+        let buttonContainer = NSStackView()
+        buttonContainer.orientation = .horizontal
+        buttonContainer.alignment = .centerY
+        buttonContainer.spacing = theme.spacingSm
         buttonContainer.translatesAutoresizingMaskIntoConstraints = false
-        buttonContainer.addSubview(submitButton)
 
-        NSLayoutConstraint.activate([
-            submitButton.topAnchor.constraint(equalTo: buttonContainer.topAnchor, constant: 8),
-            submitButton.trailingAnchor.constraint(equalTo: buttonContainer.trailingAnchor),
-            submitButton.bottomAnchor.constraint(equalTo: buttonContainer.bottomAnchor),
-        ])
+        // Spacer to push button to the right
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+
+        // Shortcut hint
+        let shortcutLabel = NSTextField(labelWithString: "⏎")
+        shortcutLabel.font = theme.font(size: .sm)
+        shortcutLabel.textColor = theme.foregroundTertiaryColor
+        shortcutLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        buttonContainer.addArrangedSubview(spacer)
+        buttonContainer.addArrangedSubview(submitButton)
+        buttonContainer.addArrangedSubview(shortcutLabel)
 
         contentStackView.addArrangedSubview(buttonContainer)
         buttonContainer.widthAnchor.constraint(equalTo: contentStackView.widthAnchor).isActive = true
@@ -231,11 +244,17 @@ final class ExtensionFormView: NSView {
         textField.delegate = self
         textField.tag = field.id.hashValue
 
+        // Style the text field to match theme
+        textField.bezelStyle = .roundedBezel
+        textField.focusRingType = .none
+        textField.wantsLayer = true
+        textField.layer?.cornerRadius = theme.radiusSm
+
         // Store field ID for delegate callbacks
         objc_setAssociatedObject(textField, &AssociatedKeys.fieldId, field.id, .OBJC_ASSOCIATION_RETAIN)
 
-        // Form field height: spacing + font size + spacing
-        let fieldHeight = theme.spacingSm + CGFloat(theme.data.typography.fontSizeMd) + theme.spacingSm
+        // Form field height: consistent with search field styling
+        let fieldHeight = theme.spacingMd + CGFloat(theme.data.typography.fontSizeMd) + theme.spacingMd
         textField.heightAnchor.constraint(equalToConstant: fieldHeight).isActive = true
 
         return textField

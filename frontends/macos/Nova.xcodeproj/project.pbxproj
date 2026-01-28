@@ -20,6 +20,9 @@
 		AE53A62E7DB9D695535154D0 /* ExtensionListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */; };
 		BEC7F40D164EF4B47025EA1B /* ExtensionFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C42335811204C4A720F7040 /* ExtensionFormView.swift */; };
 		D1D87DC8DFCCBBF75FCD30E4 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A118E81AFEE39EC0338ED14C /* Models.swift */; };
+		E1A2B3C4D5E6F7081920A1B2 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F7081920A1B3 /* Theme.swift */; };
+		E2A2B3C4D5E6F7081920A1B4 /* PermissionConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A2B3C4D5E6F7081920A1B5 /* PermissionConsentView.swift */; };
+		E3A2B3C4D5E6F7081920A1B6 /* PermissionsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A2B3C4D5E6F7081920A1B7 /* PermissionsManagerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +44,9 @@
 		C665510CF8FF35B293AF9000 /* Nova.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nova.entitlements; sourceTree = "<group>"; };
 		D70504225547C20F1A0AED13 /* NovaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaApp.swift; sourceTree = "<group>"; };
 		DD7E0498CA534F2103389AB0 /* SearchPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchPanel.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F7081920A1B3 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		F2A2B3C4D5E6F7081920A1B5 /* PermissionConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionConsentView.swift; sourceTree = "<group>"; };
+		F3A2B3C4D5E6F7081920A1B7 /* PermissionsManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManagerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -69,6 +75,7 @@
 				956D53A88F7DA7CCE66163CE /* Extension */,
 				898A687E891D60AC2338E6F1 /* Hotkey */,
 				2ACE6D4F70356740C88D5A0C /* Panel */,
+				D4A2B3C4D5E6F7081920A1B8 /* Permissions */,
 				9BACD46611AD46C9CA2C828B /* Supporting */,
 			);
 			path = Nova;
@@ -120,8 +127,18 @@
 				1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */,
 				A118E81AFEE39EC0338ED14C /* Models.swift */,
 				153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */,
+				F1A2B3C4D5E6F7081920A1B3 /* Theme.swift */,
 			);
 			path = Core;
+			sourceTree = "<group>";
+		};
+		D4A2B3C4D5E6F7081920A1B8 /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				F2A2B3C4D5E6F7081920A1B5 /* PermissionConsentView.swift */,
+				F3A2B3C4D5E6F7081920A1B7 /* PermissionsManagerView.swift */,
+			);
+			path = Permissions;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -193,7 +210,10 @@
 				A9A9DD400CE4C7F38EEA31A1 /* NavigationStack.swift in Sources */,
 				5CE76EEEAE2B5DB873E1952D /* NovaApp.swift in Sources */,
 				394B200BB0C81D63DAECC86C /* NovaCore.swift in Sources */,
+				E2A2B3C4D5E6F7081920A1B4 /* PermissionConsentView.swift in Sources */,
+				E3A2B3C4D5E6F7081920A1B6 /* PermissionsManagerView.swift in Sources */,
 				79C5DC0DF55788E5C1C40F73 /* SearchPanel.swift in Sources */,
+				E1A2B3C4D5E6F7081920A1B2 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

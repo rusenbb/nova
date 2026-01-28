@@ -14,7 +14,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "jsx": "react-jsx",
-    "jsxImportSource": "@aspect/nova",
+    "jsxImportSource": "react",
     "noEmit": true
   },
   "include": ["src/**/*"],

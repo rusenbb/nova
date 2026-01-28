@@ -266,11 +266,11 @@ final class ExtensionDetailView: NSView {
             range: nil
         )
 
-        // Blockquotes
+        // Blockquotes (use (?m) for multiline mode so ^ and $ match line boundaries)
         html = html.replacingOccurrences(
-            of: #"^> (.+)$"#,
+            of: #"(?m)^> (.+)$"#,
             with: "<blockquote>$1</blockquote>",
-            options: [.regularExpression, .anchorsMatchLines],
+            options: .regularExpression,
             range: nil
         )
 

@@ -310,6 +310,6 @@ deno_core::extension!(
         op_nova_navigation_pop,
         op_nova_navigation_depth,
     ],
-    esm_entry_point = "ext:nova/runtime.js",
+    esm_entry_point = "ext:nova_extension/runtime.js",
     esm = [dir "src/extensions/js", "runtime.js"],
 );

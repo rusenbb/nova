@@ -139,6 +139,12 @@ export interface NovaAPI {
    * Register a command handler.
    */
   registerCommand(name: string, handler: CommandHandler): void;
+
+  /**
+   * Register an event handler for action callbacks.
+   * This is called internally by registerCallback().
+   */
+  registerEventHandler(eventId: string, handler: (...args: unknown[]) => void): void;
 }
 
 /**

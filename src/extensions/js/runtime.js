@@ -1,6 +1,51 @@
 // Nova Runtime - provides global Nova API to extensions
 // This file is loaded before any extension code runs.
 
+// -----------------------------------------------------------------------------
+// Timer Polyfills (for React reconciler compatibility)
+// -----------------------------------------------------------------------------
+
+// Simple synchronous "setTimeout" polyfill - executes immediately
+// This is sufficient for React reconciler in synchronous mode
+if (typeof globalThis.setTimeout === 'undefined') {
+
+  let timerId = 0;
+  const timers = new Map();
+
+  globalThis.setTimeout = (callback, delay, ...args) => {
+    const id = ++timerId;
+    // For our use case, we execute callbacks immediately (synchronous mode)
+    // A proper async implementation would need Deno.core scheduling
+    try {
+      callback(...args);
+    } catch (e) {
+      console.error("[Nova Runtime] setTimeout callback error:", e);
+    }
+    return id;
+  };
+
+  globalThis.clearTimeout = (id) => {
+    // No-op for immediate execution
+  };
+
+  globalThis.setInterval = (callback, delay, ...args) => {
+    // For Nova extensions, we don't need real intervals
+    // Return a dummy ID
+    return ++timerId;
+  };
+
+  globalThis.clearInterval = (id) => {
+    // No-op
+  };
+
+  // queueMicrotask should be available, but just in case
+  if (typeof globalThis.queueMicrotask === 'undefined') {
+    globalThis.queueMicrotask = (callback) => {
+      Promise.resolve().then(callback);
+    };
+  }
+}
+
 const {
   op_nova_clipboard_copy,
   op_nova_clipboard_read,

@@ -22,3 +22,4 @@ my-ext/
 
 # Extension build output
 sample-extensions/*/dist/
+packages/nova-sdk/node_modules/

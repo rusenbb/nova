@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 use std::ptr;
+use std::sync::Arc;
 
 use crate::config::Config;
 use crate::core::{SearchEngine, SearchResult};
@@ -26,7 +27,7 @@ use crate::services::frecency::FrecencyData;
 /// This struct holds all the state needed for search and execution.
 /// It is created by `nova_core_new()` and must be freed with `nova_core_free()`.
 pub struct NovaCore {
-    platform: Box<dyn Platform>,
+    platform: Arc<dyn Platform>,
     config: Config,
     search_engine: SearchEngine,
     apps: Vec<AppEntry>,
@@ -99,6 +100,7 @@ pub extern "C" fn nova_core_new() -> *mut NovaCore {
         if extensions_dir.exists() {
             let config = ExtensionHostConfig {
                 extensions_dir: extensions_dir.clone(),
+                platform: Some(platform.clone()),
                 ..Default::default()
             };
             match ExtensionHost::new(config) {
@@ -207,6 +209,7 @@ pub unsafe extern "C" fn nova_core_search(
     };
 
     // Perform search with frecency-based ranking
+    // Request more results to leave room for Deno commands
     let mut results = core.search_engine.search(
         &core.apps,
         &core.custom_commands,
@@ -217,17 +220,30 @@ pub unsafe extern "C" fn nova_core_search(
         max_results as usize,
     );
 
-    // Add Deno extension commands to results
+    println!("[Nova] Search '{}': {} results from main search", query_str, results.len());
+
+    // Add Deno extension commands to results (insert near the top, not at the end)
     if let Some(ref deno_host) = core.deno_host {
-        for cmd in deno_host.search_commands(query_str) {
-            results.push(SearchResult::DenoCommand {
+        let deno_commands: Vec<_> = deno_host
+            .search_commands(query_str)
+            .into_iter()
+            .map(|cmd| SearchResult::DenoCommand {
                 extension_id: cmd.extension_id,
                 command_id: cmd.command_id,
                 title: cmd.title,
                 subtitle: cmd.subtitle,
                 icon: cmd.icon,
                 keywords: cmd.keywords,
-            });
+            })
+            .collect();
+
+        println!("[Nova] Search '{}': {} deno commands found", query_str, deno_commands.len());
+
+        // Insert Deno commands after the first few results (e.g., position 3)
+        // This ensures they appear prominently but not before top matches
+        let insert_pos = results.len().min(3);
+        for (i, cmd) in deno_commands.into_iter().enumerate() {
+            results.insert(insert_pos + i, cmd);
         }
     }
 

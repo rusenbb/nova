@@ -172,7 +172,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    @objc private func reloadConfig() {
+    @MainActor @objc private func reloadConfig() {
         core?.reload()
         print("[Nova] Configuration reloaded")
     }

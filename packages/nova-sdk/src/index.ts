@@ -9,7 +9,7 @@
  * import { List, Icon, registerCommand, render, useState } from "@aspect/nova";
  *
  * registerCommand("my-command", () => {
- *   render(() => <MyComponent />);
+ *   render(<MyComponent />);
  * });
  *
  * function MyComponent() {
@@ -109,19 +109,25 @@ export type {
 export { Icon, Accessory, shortcut } from "./types/index.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Component Factories
+// React Components (from reconciler)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export { List, Detail, Form } from "./reconciler/index.js";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Factory Functions (for programmatic use without JSX)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export {
-  List,
-  Detail,
-  Form,
+  List as ListFactory,
+  Detail as DetailFactory,
+  Form as FormFactory,
   createAction,
   createActionPanel,
 } from "./components.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hooks
+// React Hooks (from React)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export {
@@ -132,18 +138,37 @@ export {
   useRef,
   useReducer,
   useId,
-  render,
-  unmount,
-} from "./hooks.js";
+  useContext,
+  useLayoutEffect,
+  useImperativeHandle,
+  useDebugValue,
+  useDeferredValue,
+  useTransition,
+  useSyncExternalStore,
+  useInsertionEffect,
+} from "react";
 
+// Re-export common React types
 export type {
-  SetStateAction,
+  FC,
+  ReactNode,
+  ReactElement,
   Dispatch,
-  EffectCallback,
-  DependencyList,
+  SetStateAction,
   MutableRefObject,
+  RefObject,
   Reducer,
-} from "./hooks.js";
+  ReducerState,
+  ReducerAction,
+  DependencyList,
+  EffectCallback,
+} from "react";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Render System (from reconciler)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export { render, unmount } from "./reconciler/index.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Navigation
@@ -188,7 +213,7 @@ export {
   showNotification,
   closeWindow,
 
-  // Render
+  // Render (legacy - prefer using render() from reconciler)
   renderComponent,
 
   // Navigation
@@ -204,13 +229,4 @@ export {
 // JSX Runtime (re-exported for convenience)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export {
-  jsx,
-  jsxs,
-  Fragment,
-  jsxDEV,
-  isNovaElement,
-  serializeElement,
-} from "./jsx-runtime.js";
-
-export type { NovaElement as JSXElement, NovaComponent } from "./jsx-runtime.js";
+export { jsx, jsxs, Fragment, jsxDEV } from "./jsx-runtime.js";

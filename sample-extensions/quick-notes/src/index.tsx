@@ -25,6 +25,7 @@ import {
   createActionPanel,
   navigationPush,
   navigationPop,
+  registerCallback,
 } from "@aspect/nova";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,8 +172,17 @@ function NotesListView() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function CreateNoteView() {
+  // Register callback for form submission
+  const handleSubmit = registerCallback((eventData: { values?: { title?: string; content?: string } }) => {
+    const values = eventData.values;
+    if (values?.title) {
+      addNote(values.title, values.content || "");
+      closeWindow();
+    }
+  });
+
   return (
-    <Form onSubmit="submit">
+    <Form onSubmit={handleSubmit}>
       <Form.TextField
         id="title"
         title="Title"
@@ -192,10 +202,10 @@ function CreateNoteView() {
 // Register Commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-registerCommand("search", (props) => {
-  render(() => <NotesListView />);
+registerCommand("search", () => {
+  render(<NotesListView />);
 });
 
-registerCommand("create", (props) => {
-  render(() => <CreateNoteView />);
+registerCommand("create", () => {
+  render(<CreateNoteView />);
 });

@@ -16,6 +16,7 @@ pub mod macos;
 mod windows;
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Represents an installed application discovered on the system.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -436,20 +437,20 @@ pub trait Platform: Send + Sync {
 }
 
 /// Get the platform implementation for the current OS.
-pub fn current() -> Box<dyn Platform> {
+pub fn current() -> Arc<dyn Platform> {
     #[cfg(target_os = "linux")]
     {
-        Box::new(linux::LinuxPlatform::new())
+        Arc::new(linux::LinuxPlatform::new())
     }
 
     #[cfg(target_os = "macos")]
     {
-        Box::new(macos::MacOSPlatform::new())
+        Arc::new(macos::MacOSPlatform::new())
     }
 
     #[cfg(target_os = "windows")]
     {
-        Box::new(windows::WindowsPlatform::new())
+        Arc::new(windows::WindowsPlatform::new())
     }
 
     #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]

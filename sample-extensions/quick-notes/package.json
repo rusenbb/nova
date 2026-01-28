@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "esbuild src/index.tsx --bundle --outfile=dist/index.js --format=esm --external:@aspect/nova",
-    "dev": "esbuild src/index.tsx --bundle --outfile=dist/index.js --format=esm --external:@aspect/nova --watch"
+    "build": "esbuild src/index.tsx --bundle --outfile=dist/index.js --format=esm",
+    "dev": "esbuild src/index.tsx --bundle --outfile=dist/index.js --format=esm --watch"
   },
   "dependencies": {
     "@aspect/nova": "file:../../packages/nova-sdk"

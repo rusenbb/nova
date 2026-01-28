@@ -21,3 +21,4 @@ mode = "list"
 
 [permissions]
 clipboard = true
+storage = true

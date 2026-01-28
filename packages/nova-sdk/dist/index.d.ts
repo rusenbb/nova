@@ -1,3 +1,8 @@
+import * as react from 'react';
+import { FC, ReactNode, ReactElement } from 'react';
+export { DependencyList, Dispatch, EffectCallback, FC, MutableRefObject, ReactElement, ReactNode, Reducer, ReducerAction, ReducerState, RefObject, SetStateAction, useCallback, useContext, useDebugValue, useDeferredValue, useEffect, useId, useImperativeHandle, useInsertionEffect, useLayoutEffect, useMemo, useReducer, useRef, useState, useSyncExternalStore, useTransition } from 'react';
+import ReactJSXRuntime from 'react/jsx-runtime';
+
 /**
  * Common types used across Nova components.
  * These types mirror the Rust definitions in src/extensions/components/common.rs
@@ -507,11 +512,11 @@ type ComponentData = ListData | DetailData | FormData;
 /**
  * Internal JSX element representation.
  */
-type NovaElement$1 = ListElement | DetailElement | FormElement;
+type NovaElement = ListElement | DetailElement | FormElement;
 /**
  * Any renderable Nova element or fragment.
  */
-type NovaNode = NovaElement$1 | string | number | boolean | null | undefined | NovaNode[];
+type NovaNode = NovaElement | string | number | boolean | null | undefined | NovaNode[];
 
 /**
  * Nova API type definitions.
@@ -639,12 +644,114 @@ interface NovaAPI {
      * Register a command handler.
      */
     registerCommand(name: string, handler: CommandHandler): void;
+    /**
+     * Register an event handler for action callbacks.
+     * This is called internally by registerCallback().
+     */
+    registerEventHandler(eventId: string, handler: (...args: unknown[]) => void): void;
 }
 /**
  * Declare the global Nova API.
  */
 declare global {
     const Nova: NovaAPI;
+}
+
+/**
+ * React Components for Nova
+ *
+ * These components render to Nova's native UI through the custom reconciler.
+ * They create React elements with string types that the reconciler handles.
+ */
+
+/**
+ * List component props with React children.
+ */
+type ListComponentProps = Omit<ListProps, "children"> & {
+    children?: ReactNode;
+};
+/**
+ * List.Section component props with React children.
+ */
+type ListSectionComponentProps = Omit<ListSectionProps, "children"> & {
+    children?: ReactNode;
+};
+/**
+ * List component with Item and Section sub-components.
+ */
+declare const List$1: FC<ListComponentProps> & {
+    Item: FC<ListItemProps>;
+    Section: FC<ListSectionComponentProps>;
+};
+/**
+ * Detail.Metadata component props with React children.
+ */
+type DetailMetadataComponentProps = Omit<DetailMetadataProps, "children"> & {
+    children?: ReactNode;
+};
+/**
+ * Detail component with Metadata sub-component.
+ */
+declare const Detail$1: FC<DetailProps> & {
+    Metadata: FC<DetailMetadataComponentProps> & {
+        Item: FC<MetadataItemProps>;
+    };
+};
+/**
+ * Form component props with React children.
+ */
+type FormComponentProps = Omit<FormProps, "children"> & {
+    children?: ReactNode;
+};
+/**
+ * Form component with field sub-components.
+ */
+declare const Form$1: FC<FormComponentProps> & {
+    TextField: FC<FormTextFieldProps>;
+    Dropdown: FC<FormDropdownProps>;
+    Checkbox: FC<FormCheckboxProps>;
+    DatePicker: FC<FormDatePickerProps>;
+};
+
+/**
+ * Nova Render System
+ *
+ * Creates a React reconciler instance and provides the render/unmount functions.
+ */
+
+/**
+ * Render a React element to Nova's UI.
+ *
+ * This should be called from a command handler.
+ *
+ * @param element - The React element to render (e.g., <List>...</List>)
+ *
+ * @example
+ * ```tsx
+ * registerCommand("my-command", () => {
+ *   render(<MyComponent />);
+ * });
+ *
+ * function MyComponent() {
+ *   return (
+ *     <List>
+ *       <List.Item id="1" title="Hello" />
+ *     </List>
+ *   );
+ * }
+ * ```
+ */
+declare function render(element: ReactElement): void;
+/**
+ * Unmount the component for a command.
+ *
+ * This cleans up the React tree and frees resources.
+ *
+ * @param commandId - The command ID to unmount (defaults to current command)
+ */
+declare function unmount(commandId?: string): void;
+declare global {
+    var __nova_current_command: string | undefined;
 }
 
 /**
@@ -711,145 +818,6 @@ declare function createAction(props: {
 }): Action;
 
 /**
- * Nova JSX Runtime
- *
- * Implements a React-compatible JSX runtime for Nova components.
- * This enables the automatic JSX transform (jsx/jsxs/Fragment).
- *
- * Usage in tsconfig.json:
- *   "jsx": "react-jsx",
- *   "jsxImportSource": "@aspect/nova"
- */
-
-declare const NOVA_ELEMENT_TYPE: unique symbol;
-/**
- * Internal Nova element structure.
- */
-interface NovaElement<P = unknown> {
-    $$typeof: typeof NOVA_ELEMENT_TYPE;
-    type: string | NovaComponent<P>;
-    props: P;
-    key: string | null;
-}
-/**
- * A Nova component function.
- */
-type NovaComponent<P = unknown> = (props: P) => NovaElement | null;
-/**
- * Check if a value is a Nova element.
- */
-declare function isNovaElement(value: unknown): value is NovaElement;
-/**
- * Creates a Nova element (single child case).
- * Used by the automatic JSX transform.
- */
-declare function jsx<P extends Record<string, unknown>>(type: string | NovaComponent<P>, props: P & {
-    children?: unknown;
-}, key?: string): NovaElement<P>;
-/**
- * Creates a Nova element (multiple children case).
- * Used by the automatic JSX transform.
- */
-declare function jsxs<P extends Record<string, unknown>>(type: string | NovaComponent<P>, props: P & {
-    children?: unknown[];
-}, key?: string): NovaElement<P>;
-/**
- * Fragment - groups children without a wrapper element.
- */
-declare const Fragment: unique symbol;
-/**
- * Creates a Nova element (development mode).
- * Same as jsx but could include additional debug info.
- */
-declare const jsxDEV: typeof jsx;
-/**
- * Serialize a Nova element tree to the JSON format expected by Rust.
- */
-declare function serializeElement(element: NovaElement): ComponentData;
-
-/**
- * Nova Hooks System
- *
- * Implements React-like hooks for Nova components.
- * Uses a simple render context that tracks hook state.
- */
-
-type SetStateAction<S> = S | ((prevState: S) => S);
-type Dispatch<A> = (action: A) => void;
-/**
- * Returns a stateful value and a function to update it.
- *
- * @param initialState - Initial state value or function that returns it
- * @returns Tuple of [state, setState]
- */
-declare function useState<S>(initialState: S | (() => S)): [S, Dispatch<SetStateAction<S>>];
-type EffectCallback = () => void | (() => void);
-type DependencyList = readonly unknown[];
-/**
- * Accepts a function that contains imperative, possibly effectful code.
- * Effects run after render is complete.
- *
- * @param effect - Effect function (can return a cleanup function)
- * @param deps - Dependencies array (effect re-runs when these change)
- */
-declare function useEffect(effect: EffectCallback, deps?: DependencyList): void;
-/**
- * Returns a memoized value. Re-computes only when dependencies change.
- *
- * @param factory - Function that computes the value
- * @param deps - Dependencies array
- * @returns The memoized value
- */
-declare function useMemo<T>(factory: () => T, deps: DependencyList): T;
-/**
- * Returns a memoized callback. Only changes when dependencies change.
- *
- * @param callback - The callback function
- * @param deps - Dependencies array
- * @returns The memoized callback
- */
-declare function useCallback<T extends (...args: unknown[]) => unknown>(callback: T, deps: DependencyList): T;
-interface MutableRefObject<T> {
-    current: T;
-}
-/**
- * Returns a mutable ref object.
- *
- * @param initialValue - Initial value for ref.current
- * @returns A ref object
- */
-declare function useRef<T>(initialValue: T): MutableRefObject<T>;
-type Reducer<S, A> = (prevState: S, action: A) => S;
-/**
- * Alternative to useState for complex state logic.
- *
- * @param reducer - Reducer function
- * @param initialState - Initial state
- * @returns Tuple of [state, dispatch]
- */
-declare function useReducer<S, A>(reducer: Reducer<S, A>, initialState: S): [S, Dispatch<A>];
-/**
- * Generate a unique ID for accessibility attributes.
- *
- * @returns A unique ID string
- */
-declare function useId(): string;
-/**
- * Mount a component as the root of a command.
- * This should be called from Nova.registerCommand handlers.
- *
- * @param component - The component function to render
- */
-declare function render(component: () => NovaElement | null): void;
-/**
- * Unmount a component and run cleanup effects.
- */
-declare function unmount(componentId: string): void;
-declare global {
-    var __nova_current_command: string | null;
-}
-
-/**
  * Navigation Hook
  *
  * Provides a hook for multi-view navigation in Nova extensions.
@@ -861,9 +829,9 @@ declare global {
 interface UseNavigationReturn {
     /**
      * Push a new view onto the navigation stack.
-     * Accepts either a serialized component or a JSX element.
+     * Accepts serialized component data.
      */
-    push: (view: ComponentData | NovaElement) => void;
+    push: (view: ComponentData) => void;
     /**
      * Pop the current view from the navigation stack.
      * Returns true if a view was popped, false if at root.
@@ -901,9 +869,6 @@ interface UseNavigationReturn {
  *       />
  *     </List>
  *   );
- *
- *   // In action handler:
- *   // push(<DetailView item={selectedItem} />);
  * }
  * ```
  */
@@ -915,7 +880,7 @@ declare function useNavigation(): UseNavigationReturn;
  * @example
  * ```tsx
  * const handleOpen = registerCallback((itemId) => {
- *   navigation.push(<DetailView itemId={itemId} />);
+ *   navigation.push({ type: "Detail", markdown: "..." });
  * });
  *
  * <List.Item
@@ -1087,4 +1052,11 @@ declare function navigationDepth(): number;
  */
 declare function registerCommand(name: string, handler: CommandHandler): void;
 
-export { Accessory, type AccessoryType, type Action, type ActionPanel, type ActionStyle, type ClipboardAPI, type CommandHandler, type CommandProps, type ComponentData, type DateFormat, type DependencyList, Detail, type DetailData, type DetailMetadataData, type DetailMetadataProps, type DetailProps, type Dispatch, type DropdownOption, type EffectCallback, type FetchMethod, type FetchOptions, type FetchResponse, type FieldValidation, Form, type FormCheckboxData, type FormCheckboxProps, type FormData, type FormDatePickerData, type FormDatePickerProps, type FormDropdownData, type FormDropdownProps, type FormFieldData, type FormProps, type FormTextFieldData, type FormTextFieldProps, Fragment, Icon, type IconType, type NovaElement as JSXElement, type KeyModifier, List, type ListChildData, type ListData, type ListFiltering, type ListItemData, type ListItemProps, type ListProps, type ListSectionData, type ListSectionProps, type MetadataItemData, type MetadataItemProps, type MetadataLink, type MutableRefObject, type NavigationAPI, type NovaAPI, type NovaComponent, type NovaElement$1 as NovaElement, type NovaNode, type PreferencesAPI, type Reducer, type SetStateAction, type Shortcut, type StorageAPI, type SystemAPI, type TextFieldType, type UseNavigationReturn, clearCallback, clipboardCopy, clipboardRead, closeWindow, createAction, createActionPanel, fetch, fetchJson, getAllPreferences, getCallback, getPreference, isNovaElement, jsx, jsxDEV, jsxs, navigationDepth, navigationPop, navigationPush, openPath, openUrl, postJson, registerCallback, registerCommand, render, renderComponent, serializeElement, shortcut, showNotification, storageGet, storageKeys, storageRemove, storageSet, unmount, useCallback, useEffect, useId, useMemo, useNavigation, useReducer, useRef, useState };
+declare const jsx: typeof ReactJSXRuntime.jsx;
+declare const jsxs: typeof ReactJSXRuntime.jsxs;
+declare const Fragment: react.ExoticComponent<{
+    children?: react.ReactNode | undefined;
+}>;
+declare const jsxDEV: typeof ReactJSXRuntime.jsx;
+
+export { Accessory, type AccessoryType, type Action, type ActionPanel, type ActionStyle, type ClipboardAPI, type CommandHandler, type CommandProps, type ComponentData, type DateFormat, Detail$1 as Detail, type DetailData, Detail as DetailFactory, type DetailMetadataData, type DetailMetadataProps, type DetailProps, type DropdownOption, type FetchMethod, type FetchOptions, type FetchResponse, type FieldValidation, Form$1 as Form, type FormCheckboxData, type FormCheckboxProps, type FormData, type FormDatePickerData, type FormDatePickerProps, type FormDropdownData, type FormDropdownProps, Form as FormFactory, type FormFieldData, type FormProps, type FormTextFieldData, type FormTextFieldProps, Fragment, Icon, type IconType, type KeyModifier, List$1 as List, type ListChildData, type ListData, List as ListFactory, type ListFiltering, type ListItemData, type ListItemProps, type ListProps, type ListSectionData, type ListSectionProps, type MetadataItemData, type MetadataItemProps, type MetadataLink, type NavigationAPI, type NovaAPI, type NovaElement, type NovaNode, type PreferencesAPI, type Shortcut, type StorageAPI, type SystemAPI, type TextFieldType, type UseNavigationReturn, clearCallback, clipboardCopy, clipboardRead, closeWindow, createAction, createActionPanel, fetch, fetchJson, getAllPreferences, getCallback, getPreference, jsx, jsxDEV, jsxs, navigationDepth, navigationPop, navigationPush, openPath, openUrl, postJson, registerCallback, registerCommand, render, renderComponent, shortcut, showNotification, storageGet, storageKeys, storageRemove, storageSet, unmount, useNavigation };

@@ -6,7 +6,8 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use deno_core::{JsRuntime, RuntimeOptions};
+use deno_core::{FsModuleLoader, JsRuntime, ModuleSpecifier, RuntimeOptions};
+use std::rc::Rc;
 
 use super::error::{ExtensionError, ExtensionResult};
 use super::ipc::{nova_extension, NovaContext};
@@ -74,9 +75,10 @@ impl ExtensionIsolate {
 
         self.state = IsolateState::Loading;
 
-        // Create runtime with Nova extension ops
+        // Create runtime with Nova extension ops and module loader
         let options = RuntimeOptions {
             extensions: vec![nova_extension::init_ops_and_esm()],
+            module_loader: Some(Rc::new(FsModuleLoader)),
             ..Default::default()
         };
 
@@ -115,18 +117,46 @@ impl ExtensionIsolate {
 
     /// Load a JavaScript module into the runtime.
     fn load_module(&mut self, runtime: &mut JsRuntime, path: &PathBuf) -> ExtensionResult<()> {
-        let code = std::fs::read_to_string(path).map_err(|e| ExtensionError::LoadFailed {
-            extension: self.id.clone(),
-            message: format!("Failed to read {}: {}", path.display(), e),
+        // Create a file:// URL for the module
+        let module_url = ModuleSpecifier::from_file_path(path).map_err(|_| {
+            ExtensionError::LoadFailed {
+                extension: self.id.clone(),
+                message: format!("Invalid module path: {}", path.display()),
+            }
         })?;
 
-        // Execute the module code
-        runtime
-            .execute_script("<extension>", code)
+        // Create a tokio runtime for async operations
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
             .map_err(|e| ExtensionError::LoadFailed {
                 extension: self.id.clone(),
-                message: format!("JavaScript error: {}", e),
+                message: format!("Failed to create runtime: {}", e),
             })?;
+
+        // Load and evaluate the module as ES module
+        let module_id = rt
+            .block_on(async { runtime.load_main_es_module(&module_url).await })
+            .map_err(|e| ExtensionError::LoadFailed {
+                extension: self.id.clone(),
+                message: format!("Failed to load module: {}", e),
+            })?;
+
+        // Evaluate the module
+        rt.block_on(async { runtime.mod_evaluate(module_id).await })
+            .map_err(|e| ExtensionError::LoadFailed {
+                extension: self.id.clone(),
+                message: format!("Failed to evaluate module: {}", e),
+            })?;
+
+        // Run the event loop to ensure all top-level code executes
+        rt.block_on(async {
+            runtime.run_event_loop(deno_core::PollEventLoopOptions::default()).await
+        })
+        .map_err(|e| ExtensionError::LoadFailed {
+            extension: self.id.clone(),
+            message: format!("Event loop failed: {}", e),
+        })?;
 
         Ok(())
     }
@@ -196,6 +226,9 @@ impl ExtensionIsolate {
                 }}
 
                 try {{
+                    // Set the current command so render() creates a separate container per command
+                    globalThis.__nova_current_command = command;
+
                     const result = handler(argument);
 
                     // Also get the current rendered component if any
@@ -203,12 +236,16 @@ impl ExtensionIsolate {
                         ? globalThis.__nova_get_rendered_component()
                         : null;
 
+                    // Reset current command
+                    globalThis.__nova_current_command = null;
+
                     return JSON.stringify({{
                         success: true,
                         result: result,
                         component: component
                     }});
                 }} catch (e) {{
+                    globalThis.__nova_current_command = null;
                     return JSON.stringify({{ success: false, error: e.message || String(e) }});
                 }}
             }})()

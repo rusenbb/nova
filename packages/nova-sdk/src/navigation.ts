@@ -4,9 +4,7 @@
  * Provides a hook for multi-view navigation in Nova extensions.
  */
 
-import type { NovaElement } from "./jsx-runtime.js";
-import { serializeElement } from "./jsx-runtime.js";
-import { useMemo, useCallback, useState } from "./hooks.js";
+import { useMemo, useCallback, useState } from "react";
 import type { ComponentData } from "./types/index.js";
 
 /**
@@ -15,9 +13,9 @@ import type { ComponentData } from "./types/index.js";
 export interface UseNavigationReturn {
   /**
    * Push a new view onto the navigation stack.
-   * Accepts either a serialized component or a JSX element.
+   * Accepts serialized component data.
    */
-  push: (view: ComponentData | NovaElement) => void;
+  push: (view: ComponentData) => void;
 
   /**
    * Pop the current view from the navigation stack.
@@ -59,54 +57,53 @@ export interface UseNavigationReturn {
  *       />
  *     </List>
  *   );
- *
- *   // In action handler:
- *   // push(<DetailView item={selectedItem} />);
  * }
  * ```
  */
 export function useNavigation(): UseNavigationReturn {
   // Track depth locally for canGoBack
-  const [depth, setDepth] = useState(() => Nova.navigation.depth());
-
-  const push = (view: ComponentData | NovaElement): void => {
-    // Serialize if it's a JSX element
-    const data = isNovaElement(view) ? serializeElement(view) : view;
-    Nova.navigation.push(data);
-    setDepth((d) => d + 1);
-  };
-
-  const pop = (): boolean => {
-    const result = Nova.navigation.pop();
-    if (result) {
-      setDepth((d) => Math.max(0, d - 1));
+  const [stackDepth, setStackDepth] = useState(() => {
+    if (typeof Nova !== "undefined" && Nova.navigation) {
+      return Nova.navigation.depth();
     }
-    return result;
-  };
+    return 0;
+  });
 
-  const getDepth = (): number => {
-    return Nova.navigation.depth();
-  };
+  const push = useCallback((view: ComponentData): void => {
+    if (typeof Nova !== "undefined" && Nova.navigation) {
+      Nova.navigation.push(view);
+      setStackDepth((d) => d + 1);
+    }
+  }, []);
 
-  const canGoBack = depth > 0;
+  const pop = useCallback((): boolean => {
+    if (typeof Nova !== "undefined" && Nova.navigation) {
+      const result = Nova.navigation.pop();
+      if (result) {
+        setStackDepth((d) => Math.max(0, d - 1));
+      }
+      return result;
+    }
+    return false;
+  }, []);
 
-  return {
-    push,
-    pop,
-    depth: getDepth,
-    canGoBack,
-  };
-}
+  const getDepth = useCallback((): number => {
+    if (typeof Nova !== "undefined" && Nova.navigation) {
+      return Nova.navigation.depth();
+    }
+    return stackDepth;
+  }, [stackDepth]);
 
-/**
- * Type guard for NovaElement.
- */
-function isNovaElement(value: unknown): value is NovaElement {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "$$typeof" in value &&
-    (value as { $$typeof: symbol }).$$typeof === Symbol.for("nova.element")
+  const canGoBack = stackDepth > 0;
+
+  return useMemo(
+    () => ({
+      push,
+      pop,
+      depth: getDepth,
+      canGoBack,
+    }),
+    [push, pop, getDepth, canGoBack]
   );
 }
 
@@ -126,7 +123,7 @@ let callbackCounter = 0;
  * @example
  * ```tsx
  * const handleOpen = registerCallback((itemId) => {
- *   navigation.push(<DetailView itemId={itemId} />);
+ *   navigation.push({ type: "Detail", markdown: "..." });
  * });
  *
  * <List.Item
@@ -147,6 +144,12 @@ export function registerCallback<T extends (...args: unknown[]) => void>(
 ): string {
   const id = `cb_${++callbackCounter}_${Date.now()}`;
   callbacks.set(id, callback);
+
+  // Also register with Nova runtime for event dispatch
+  if (typeof Nova !== "undefined" && Nova.registerEventHandler) {
+    Nova.registerEventHandler(id, callback as (...args: unknown[]) => void);
+  }
+
   return id;
 }
 
@@ -167,3 +170,5 @@ export function clearCallback(id: string): void {
 
 // Export the callback map for the runtime
 export { callbacks };
+
+// Note: Nova global is declared in types/api.ts

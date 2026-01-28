@@ -105,7 +105,12 @@ final class NovaCore {
 
     /// Execute an extension command and return the rendered component.
     func executeExtension(extensionId: String, commandId: String, argument: String? = nil) -> ExtensionResponse? {
-        guard let handle = handle else { return nil }
+        NSLog("[Nova] executeExtension: ext=%@ cmd=%@", extensionId, commandId)
+
+        guard let handle = handle else {
+            NSLog("[Nova] executeExtension: no handle")
+            return nil
+        }
 
         let resultPtr: UnsafeMutablePointer<CChar>?
         if let arg = argument {
@@ -115,25 +120,29 @@ final class NovaCore {
         }
 
         guard let resultPtr = resultPtr else {
+            NSLog("[Nova] executeExtension: FFI returned null")
             return nil
         }
 
         defer { nova_string_free(resultPtr) }
 
         let jsonString = String(cString: resultPtr)
+        NSLog("[Nova] executeExtension response: %@", jsonString)
+
         guard let jsonData = jsonString.data(using: .utf8) else {
             return nil
         }
 
         do {
             let response = try decoder.decode(ExtensionExecuteResponseInternal.self, from: jsonData)
+            NSLog("[Nova] decoded: success=%d error=%@ hasComponent=%d", response.success ? 1 : 0, response.error ?? "nil", response.component != nil ? 1 : 0)
             return ExtensionResponse(
                 component: response.component,
                 error: response.error,
                 shouldClose: response.shouldClose
             )
         } catch {
-            print("[Nova] Failed to decode extension response: \(error)")
+            NSLog("[Nova] Failed to decode: %@", String(describing: error))
             return nil
         }
     }

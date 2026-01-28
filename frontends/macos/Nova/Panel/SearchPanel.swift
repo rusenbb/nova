@@ -26,11 +26,11 @@ final class SearchPanel: NSPanel {
     private var isShowingExtension: Bool = false
     private var currentExtensionId: String?
 
-    var onSearch: ((String) -> [SearchResult])?
-    var onExecute: ((UInt32) -> ExecutionResult)?
-    var onExecuteExtension: ((String, String, String?) -> ExtensionResponse?)?
-    var onExtensionEvent: ((String, String, [String: Any]) -> ExtensionResponse?)?
-    var onCheckPermissions: ((String, String, @escaping (Bool) -> Void) -> Void)?
+    var onSearch: (@MainActor (String) -> [SearchResult])?
+    var onExecute: (@MainActor (UInt32) -> ExecutionResult)?
+    var onExecuteExtension: (@MainActor (String, String, String?) -> ExtensionResponse?)?
+    var onExtensionEvent: (@MainActor (String, String, [String: Any]) -> ExtensionResponse?)?
+    var onCheckPermissions: (@MainActor (String, String, @escaping (Bool) -> Void) -> Void)?
     var onHide: (() -> Void)?
 
     // MARK: - Initialization
@@ -260,24 +260,29 @@ final class SearchPanel: NSPanel {
     }
 
     private func executeExtensionCommand(extensionId: String, commandId: String, argument: String?) {
+        NSLog("[Nova] executeExtensionCommand: ext=%@ cmd=%@", extensionId, commandId)
         // Check permissions first
         if let checkPermissions = onCheckPermissions {
             checkPermissions(extensionId, commandId) { [weak self] allowed in
+                NSLog("[Nova] Permission check result: %d", allowed ? 1 : 0)
                 if allowed {
                     self?.performExtensionExecution(extensionId: extensionId, commandId: commandId, argument: argument)
                 } else {
-                    print("[Nova] Permission denied for extension: \(extensionId)")
+                    NSLog("[Nova] Permission denied for extension: %@", extensionId)
                     NSSound.beep()
                 }
             }
         } else {
+            NSLog("[Nova] No permission callback, executing directly")
             // No permission check callback - execute directly
             performExtensionExecution(extensionId: extensionId, commandId: commandId, argument: argument)
         }
     }
 
     private func performExtensionExecution(extensionId: String, commandId: String, argument: String?) {
+        NSLog("[Nova] performExtensionExecution called")
         guard let response = onExecuteExtension?(extensionId, commandId, argument) else {
+            NSLog("[Nova] onExecuteExtension returned nil - beeping")
             NSSound.beep()
             return
         }

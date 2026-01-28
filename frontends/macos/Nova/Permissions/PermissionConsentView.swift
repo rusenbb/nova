@@ -54,7 +54,7 @@ final class PermissionConsentView: NSView {
         setupUI()
 
         // Accessibility
-        setAccessibilityRole(.dialog)
+        setAccessibilityRole(.group)
         setAccessibilityLabel("Permission consent for \(extensionTitle)")
     }
 

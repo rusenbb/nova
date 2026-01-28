@@ -277,13 +277,13 @@ impl ExtensionHost {
         let mut matches: Vec<ExtensionCommandMatch> = Vec::new();
 
         for idx in &self.command_index {
-            // Build searchable text
+            // Build searchable text (lowercase for case-insensitive matching)
             let search_text = format!(
                 "{} {} {} {}",
-                idx.command.title,
-                idx.command.description,
-                idx.command.keywords.join(" "),
-                idx.extension_title
+                idx.command.title.to_lowercase(),
+                idx.command.description.to_lowercase(),
+                idx.command.keywords.join(" ").to_lowercase(),
+                idx.extension_title.to_lowercase()
             );
 
             if let Some(score) = self.matcher.fuzzy_match(&search_text, &query_lower) {
