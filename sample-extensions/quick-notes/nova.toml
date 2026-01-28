@@ -1,0 +1,24 @@
+[extension]
+name = "quick-notes"
+title = "Quick Notes"
+description = "Quickly capture and search notes from Nova"
+version = "1.0.0"
+icon = "note.text"
+
+[[commands]]
+name = "search"
+title = "Search Notes"
+description = "Search and manage your quick notes"
+keywords = ["notes", "memo", "text", "write"]
+mode = "list"
+
+[[commands]]
+name = "create"
+title = "Create Note"
+description = "Create a new note"
+keywords = ["new", "add", "note"]
+mode = "list"
+
+[permissions]
+clipboard = true
+storage = true

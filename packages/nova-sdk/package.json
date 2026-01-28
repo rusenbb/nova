@@ -1,0 +1,59 @@
+{
+  "name": "@aspect/nova",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for building Nova launcher extensions",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./jsx-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js",
+      "require": "./dist/jsx-runtime.cjs"
+    },
+    "./jsx-dev-runtime": {
+      "types": "./dist/jsx-runtime.d.ts",
+      "import": "./dist/jsx-runtime.js",
+      "require": "./dist/jsx-runtime.cjs"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "nova",
+    "launcher",
+    "extension",
+    "sdk",
+    "jsx"
+  ],
+  "author": "Aspect",
+  "license": "MIT",
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-reconciler": "^0.29.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-reconciler": "^0.28.8",
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0"
+  },
+  "peerDependencies": {},
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

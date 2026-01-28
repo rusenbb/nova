@@ -2,60 +2,50 @@
 //!
 //! Provides standardized error handling across the application.
 
-use std::fmt;
+// Allow dead code - used by FFI layer but not by GTK binary.
+#![allow(dead_code)]
+
+use thiserror::Error;
 
 /// Errors that can occur in Nova
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum NovaError {
     /// Configuration-related errors
+    #[error("Configuration error: {0}")]
     Config(String),
 
     /// Extension loading or execution errors
+    #[error("Extension error: {0}")]
     Extension(String),
 
     /// Script execution errors
+    #[error("Script error: {0}")]
     Script(String),
 
     /// Clipboard operation errors
+    #[error("Clipboard error: {0}")]
     Clipboard(String),
 
     /// File search errors
+    #[error("File search error: {0}")]
     FileSearch(String),
 
     /// IPC communication errors
+    #[error("IPC error: {0}")]
     Ipc(String),
 
     /// Launch errors (failed to start app)
+    #[error("Launch error: {0}")]
     Launch(String),
-}
 
-impl fmt::Display for NovaError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            NovaError::Config(msg) => write!(f, "Configuration error: {}", msg),
-            NovaError::Extension(msg) => write!(f, "Extension error: {}", msg),
-            NovaError::Script(msg) => write!(f, "Script error: {}", msg),
-            NovaError::Clipboard(msg) => write!(f, "Clipboard error: {}", msg),
-            NovaError::FileSearch(msg) => write!(f, "File search error: {}", msg),
-            NovaError::Ipc(msg) => write!(f, "IPC error: {}", msg),
-            NovaError::Launch(msg) => write!(f, "Launch error: {}", msg),
-        }
-    }
-}
+    /// IO errors
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 
-impl std::error::Error for NovaError {}
+    /// TOML parsing errors
+    #[error("Config parse error: {0}")]
+    TomlParse(#[from] toml::de::Error),
+}
 
 /// Result type alias for Nova operations
 pub type NovaResult<T> = Result<T, NovaError>;
-
-impl From<std::io::Error> for NovaError {
-    fn from(err: std::io::Error) -> Self {
-        NovaError::Ipc(err.to_string())
-    }
-}
-
-impl From<toml::de::Error> for NovaError {
-    fn from(err: toml::de::Error) -> Self {
-        NovaError::Config(err.to_string())
-    }
-}

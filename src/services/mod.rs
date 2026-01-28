@@ -1,4 +1,5 @@
 pub mod app_index;
+pub mod browser;
 pub mod calculator;
 pub mod clipboard;
 pub mod custom_commands;
@@ -7,9 +8,12 @@ pub mod extension;
 pub mod extensions;
 pub mod file_search;
 pub mod format;
+pub mod frecency;
 pub mod units;
 
-pub use app_index::{AppEntry, AppIndex};
+pub use app_index::AppIndex;
+pub use browser::{BrowserClient, BrowserTab, ExtensionBrowserData, ExtensionCard};
 pub use custom_commands::{CustomCommandsIndex, ScriptOutputMode};
 pub use extension::{Extension, ExtensionIndex, ExtensionKind};
 pub use extensions::{get_extensions_dir, ExtensionManager, LoadedCommand, OutputMode};
+pub use frecency::{FrecencyData, ResultKind};

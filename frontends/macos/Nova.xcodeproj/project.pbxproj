@@ -1,0 +1,418 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 63;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0E9EB7AB51F8B08B8D1BECD3 /* ExtensionListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A384FA1938E3649B96F00AC /* ExtensionListView.swift */; };
+		1203149B8AB55376BA23240F /* ActionPanelBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 718EBC09017F76582F7FAC44 /* ActionPanelBar.swift */; };
+		394B200BB0C81D63DAECC86C /* NovaCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */; };
+		39B78C6B47BB05AA3528E09A /* HotkeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E215C355E317E34FCC154A /* HotkeyManager.swift */; };
+		4BEE9A11960A02F605FBF959 /* ExtensionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */; };
+		5CE76EEEAE2B5DB873E1952D /* NovaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70504225547C20F1A0AED13 /* NovaApp.swift */; };
+		65D6E4D370A4F35B2AE1442E /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 451F7847CE4E571E0C7F94B2 /* AppDelegate.swift */; };
+		73D6FD2E3A8E1C9E64B649A4 /* ExtensionDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94CF2918B52798633A458F8E /* ExtensionDetailView.swift */; };
+		79C5DC0DF55788E5C1C40F73 /* SearchPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD7E0498CA534F2103389AB0 /* SearchPanel.swift */; };
+		A9A9DD400CE4C7F38EEA31A1 /* NavigationStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04E5F460C855B0C34BC1C1D6 /* NavigationStack.swift */; };
+		AE53A62E7DB9D695535154D0 /* ExtensionListCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */; };
+		BEC7F40D164EF4B47025EA1B /* ExtensionFormView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C42335811204C4A720F7040 /* ExtensionFormView.swift */; };
+		D1D87DC8DFCCBBF75FCD30E4 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = A118E81AFEE39EC0338ED14C /* Models.swift */; };
+		E1A2B3C4D5E6F7081920A1B2 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A2B3C4D5E6F7081920A1B3 /* Theme.swift */; };
+		E2A2B3C4D5E6F7081920A1B4 /* PermissionConsentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2A2B3C4D5E6F7081920A1B5 /* PermissionConsentView.swift */; };
+		E3A2B3C4D5E6F7081920A1B6 /* PermissionsManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3A2B3C4D5E6F7081920A1B7 /* PermissionsManagerView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		04E5F460C855B0C34BC1C1D6 /* NavigationStack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationStack.swift; sourceTree = "<group>"; };
+		153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaCore.swift; sourceTree = "<group>"; };
+		1A384FA1938E3649B96F00AC /* ExtensionListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionListView.swift; sourceTree = "<group>"; };
+		1B0726CC913A2D745F9ADBB9 /* Nova.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Nova.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionModels.swift; sourceTree = "<group>"; };
+		2220BD3EE369F27A657C3F16 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		451F7847CE4E571E0C7F94B2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		624DECEC80E1095D4368F5C7 /* Nova-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Nova-Bridging-Header.h"; sourceTree = "<group>"; };
+		718EBC09017F76582F7FAC44 /* ActionPanelBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionPanelBar.swift; sourceTree = "<group>"; };
+		7C42335811204C4A720F7040 /* ExtensionFormView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionFormView.swift; sourceTree = "<group>"; };
+		8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionListCell.swift; sourceTree = "<group>"; };
+		94CF2918B52798633A458F8E /* ExtensionDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDetailView.swift; sourceTree = "<group>"; };
+		A118E81AFEE39EC0338ED14C /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		C0E215C355E317E34FCC154A /* HotkeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeyManager.swift; sourceTree = "<group>"; };
+		C490C4A1E536E196090BF944 /* nova.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = nova.h; sourceTree = "<group>"; };
+		C665510CF8FF35B293AF9000 /* Nova.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Nova.entitlements; sourceTree = "<group>"; };
+		D70504225547C20F1A0AED13 /* NovaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NovaApp.swift; sourceTree = "<group>"; };
+		DD7E0498CA534F2103389AB0 /* SearchPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchPanel.swift; sourceTree = "<group>"; };
+		F1A2B3C4D5E6F7081920A1B3 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		F2A2B3C4D5E6F7081920A1B5 /* PermissionConsentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionConsentView.swift; sourceTree = "<group>"; };
+		F3A2B3C4D5E6F7081920A1B7 /* PermissionsManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionsManagerView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1BE92766E93A3F687D850524 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1B0726CC913A2D745F9ADBB9 /* Nova.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		2ACE6D4F70356740C88D5A0C /* Panel */ = {
+			isa = PBXGroup;
+			children = (
+				DD7E0498CA534F2103389AB0 /* SearchPanel.swift */,
+			);
+			path = Panel;
+			sourceTree = "<group>";
+		};
+		572CB3CFDB31AD33B6DEA825 /* Nova */ = {
+			isa = PBXGroup;
+			children = (
+				451F7847CE4E571E0C7F94B2 /* AppDelegate.swift */,
+				D70504225547C20F1A0AED13 /* NovaApp.swift */,
+				C80C925FB638E23E74DE9DA4 /* Core */,
+				956D53A88F7DA7CCE66163CE /* Extension */,
+				898A687E891D60AC2338E6F1 /* Hotkey */,
+				2ACE6D4F70356740C88D5A0C /* Panel */,
+				D4A2B3C4D5E6F7081920A1B8 /* Permissions */,
+				9BACD46611AD46C9CA2C828B /* Supporting */,
+			);
+			path = Nova;
+			sourceTree = "<group>";
+		};
+		7D73225FC3919E43E853DF14 = {
+			isa = PBXGroup;
+			children = (
+				572CB3CFDB31AD33B6DEA825 /* Nova */,
+				1BE92766E93A3F687D850524 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		898A687E891D60AC2338E6F1 /* Hotkey */ = {
+			isa = PBXGroup;
+			children = (
+				C0E215C355E317E34FCC154A /* HotkeyManager.swift */,
+			);
+			path = Hotkey;
+			sourceTree = "<group>";
+		};
+		956D53A88F7DA7CCE66163CE /* Extension */ = {
+			isa = PBXGroup;
+			children = (
+				718EBC09017F76582F7FAC44 /* ActionPanelBar.swift */,
+				94CF2918B52798633A458F8E /* ExtensionDetailView.swift */,
+				7C42335811204C4A720F7040 /* ExtensionFormView.swift */,
+				8DCB3D4303FECB1AF02D6576 /* ExtensionListCell.swift */,
+				1A384FA1938E3649B96F00AC /* ExtensionListView.swift */,
+				04E5F460C855B0C34BC1C1D6 /* NavigationStack.swift */,
+			);
+			path = Extension;
+			sourceTree = "<group>";
+		};
+		9BACD46611AD46C9CA2C828B /* Supporting */ = {
+			isa = PBXGroup;
+			children = (
+				2220BD3EE369F27A657C3F16 /* Info.plist */,
+				624DECEC80E1095D4368F5C7 /* Nova-Bridging-Header.h */,
+				C665510CF8FF35B293AF9000 /* Nova.entitlements */,
+				C490C4A1E536E196090BF944 /* nova.h */,
+			);
+			path = Supporting;
+			sourceTree = "<group>";
+		};
+		C80C925FB638E23E74DE9DA4 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				1D0BFA5EACE353AA87B45AE6 /* ExtensionModels.swift */,
+				A118E81AFEE39EC0338ED14C /* Models.swift */,
+				153E7CFCBADDC1F9564D5B49 /* NovaCore.swift */,
+				F1A2B3C4D5E6F7081920A1B3 /* Theme.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		D4A2B3C4D5E6F7081920A1B8 /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				F2A2B3C4D5E6F7081920A1B5 /* PermissionConsentView.swift */,
+				F3A2B3C4D5E6F7081920A1B7 /* PermissionsManagerView.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		001D72F45BCA585CA4A811B2 /* Nova */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B0AB78949553C299C15D72F2 /* Build configuration list for PBXNativeTarget "Nova" */;
+			buildPhases = (
+				FA87E81089124B17AD253BE1 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Nova;
+			packageProductDependencies = (
+			);
+			productName = Nova;
+			productReference = 1B0726CC913A2D745F9ADBB9 /* Nova.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		F545DF30FAB818DABAFA99F1 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					001D72F45BCA585CA4A811B2 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = D007772F3651288F5AF39FA5 /* Build configuration list for PBXProject "Nova" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 7D73225FC3919E43E853DF14;
+			minimizedProjectReferenceProxies = 1;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				001D72F45BCA585CA4A811B2 /* Nova */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		FA87E81089124B17AD253BE1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1203149B8AB55376BA23240F /* ActionPanelBar.swift in Sources */,
+				65D6E4D370A4F35B2AE1442E /* AppDelegate.swift in Sources */,
+				73D6FD2E3A8E1C9E64B649A4 /* ExtensionDetailView.swift in Sources */,
+				BEC7F40D164EF4B47025EA1B /* ExtensionFormView.swift in Sources */,
+				AE53A62E7DB9D695535154D0 /* ExtensionListCell.swift in Sources */,
+				0E9EB7AB51F8B08B8D1BECD3 /* ExtensionListView.swift in Sources */,
+				4BEE9A11960A02F605FBF959 /* ExtensionModels.swift in Sources */,
+				39B78C6B47BB05AA3528E09A /* HotkeyManager.swift in Sources */,
+				D1D87DC8DFCCBBF75FCD30E4 /* Models.swift in Sources */,
+				A9A9DD400CE4C7F38EEA31A1 /* NavigationStack.swift in Sources */,
+				5CE76EEEAE2B5DB873E1952D /* NovaApp.swift in Sources */,
+				394B200BB0C81D63DAECC86C /* NovaCore.swift in Sources */,
+				E2A2B3C4D5E6F7081920A1B4 /* PermissionConsentView.swift in Sources */,
+				E3A2B3C4D5E6F7081920A1B6 /* PermissionsManagerView.swift in Sources */,
+				79C5DC0DF55788E5C1C40F73 /* SearchPanel.swift in Sources */,
+				E1A2B3C4D5E6F7081920A1B2 /* Theme.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		33779B47632DE37C421B4BBA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Nova/Supporting/Nova.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Nova Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Nova/Supporting";
+				INFOPLIST_FILE = Nova/Supporting/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../../target/release",
+					"$(PROJECT_DIR)/../../target/debug",
+				);
+				OTHER_LDFLAGS = "-lnova";
+				PRODUCT_BUNDLE_IDENTIFIER = com.nova.launcher;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		54E66C4DF7076B6EB1641FAD /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OBJC_BRIDGING_HEADER = "Nova/Supporting/Nova-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		78A834146F87CF960BAE8FE1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Nova/Supporting/Nova.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Nova Development";
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				HEADER_SEARCH_PATHS = "$(PROJECT_DIR)/Nova/Supporting";
+				INFOPLIST_FILE = Nova/Supporting/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				LIBRARY_SEARCH_PATHS = (
+					"$(PROJECT_DIR)/../../target/release",
+					"$(PROJECT_DIR)/../../target/debug",
+				);
+				OTHER_LDFLAGS = "-lnova";
+				PRODUCT_BUNDLE_IDENTIFIER = com.nova.launcher;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		D61E871FD3E8D88082AB9F41 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OBJC_BRIDGING_HEADER = "Nova/Supporting/Nova-Bridging-Header.h";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		B0AB78949553C299C15D72F2 /* Build configuration list for PBXNativeTarget "Nova" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				78A834146F87CF960BAE8FE1 /* Debug */,
+				33779B47632DE37C421B4BBA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		D007772F3651288F5AF39FA5 /* Build configuration list for PBXProject "Nova" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				54E66C4DF7076B6EB1641FAD /* Debug */,
+				D61E871FD3E8D88082AB9F41 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = F545DF30FAB818DABAFA99F1 /* Project object */;
+}

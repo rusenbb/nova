@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Nova
+Comment=Keyboard-driven productivity launcher
+Exec=nova
+Icon=nova
+Type=Application
+Categories=Utility;
+Keywords=launcher;search;productivity;
+StartupNotify=false

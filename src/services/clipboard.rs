@@ -1,10 +1,13 @@
-//! Clipboard history module for tracking recent clipboard items
+//! Clipboard history module for tracking recent clipboard items.
+//!
+//! This module is platform-agnostic - it stores clipboard history but does not
+//! directly access the clipboard. The caller is responsible for providing
+//! clipboard content via the Platform trait.
 
 use std::collections::VecDeque;
-use std::process::Command;
 use std::time::Instant;
 
-/// Entry in clipboard history
+/// Entry in clipboard history.
 #[derive(Debug, Clone)]
 pub struct ClipboardEntry {
     pub content: String,
@@ -12,7 +15,7 @@ pub struct ClipboardEntry {
 }
 
 impl ClipboardEntry {
-    /// Get a preview of the content (first line, limited chars)
+    /// Get a preview of the content (first line, limited chars).
     pub fn preview(&self, max_chars: usize) -> String {
         let first_line = self.content.lines().next().unwrap_or(&self.content);
         if first_line.len() > max_chars {
@@ -22,7 +25,7 @@ impl ClipboardEntry {
         }
     }
 
-    /// Get relative time description
+    /// Get relative time description.
     pub fn time_ago(&self) -> String {
         let elapsed = self.timestamp.elapsed();
         let secs = elapsed.as_secs();
@@ -39,7 +42,19 @@ impl ClipboardEntry {
     }
 }
 
-/// Manages clipboard history
+/// Manages clipboard history.
+///
+/// This is a platform-agnostic clipboard history manager. To use it:
+/// 1. Periodically call `platform.clipboard_read()` to get clipboard content
+/// 2. Pass the content to `poll_with_content()` or `add()` to track history
+///
+/// Example:
+/// ```ignore
+/// // In your app's update loop or timer:
+/// if let Some(content) = platform.clipboard_read() {
+///     clipboard_history.poll_with_content(&content);
+/// }
+/// ```
 pub struct ClipboardHistory {
     items: VecDeque<ClipboardEntry>,
     max_items: usize,
@@ -47,7 +62,7 @@ pub struct ClipboardHistory {
 }
 
 impl ClipboardHistory {
-    /// Create a new clipboard history with max items limit
+    /// Create a new clipboard history with max items limit.
     pub fn new(max_items: usize) -> Self {
         Self {
             items: VecDeque::with_capacity(max_items),
@@ -56,41 +71,33 @@ impl ClipboardHistory {
         }
     }
 
-    /// Get current clipboard content
-    fn get_clipboard_content() -> Option<String> {
-        let output = Command::new("xclip")
-            .args(["-selection", "clipboard", "-o"])
-            .output()
-            .ok()?;
-
-        if output.status.success() {
-            let content = String::from_utf8_lossy(&output.stdout).to_string();
-            // Skip empty content
-            if content.trim().is_empty() {
-                return None;
-            }
-            Some(content)
-        } else {
-            None
+    /// Poll with new clipboard content.
+    ///
+    /// Call this periodically with the result of `platform.clipboard_read()`.
+    /// Returns `true` if new content was added to history.
+    pub fn poll_with_content(&mut self, content: &str) -> bool {
+        // Skip empty content
+        if content.trim().is_empty() {
+            return false;
         }
-    }
 
-    /// Poll clipboard and add new content to history
-    /// Returns true if new content was added
-    pub fn poll(&mut self) -> bool {
-        if let Some(content) = Self::get_clipboard_content() {
-            // Only add if content changed
-            if content != self.last_content {
-                self.last_content = content.clone();
-                self.add(content);
-                return true;
-            }
+        // Only add if content changed
+        if content != self.last_content {
+            self.last_content = content.to_string();
+            self.add(content.to_string());
+            return true;
         }
+
         false
     }
 
-    /// Add content to history
+    /// Add content to history.
     pub fn add(&mut self, content: String) {
+        // Skip empty content
+        if content.trim().is_empty() {
+            return;
+        }
+
         // Remove if already exists (move to front)
         self.items.retain(|item| item.content != content);
 
@@ -106,7 +113,7 @@ impl ClipboardHistory {
         }
     }
 
-    /// Search items by content
+    /// Search items by content.
     pub fn search(&self, query: &str) -> Vec<&ClipboardEntry> {
         let query_lower = query.to_lowercase();
         self.items
@@ -115,24 +122,34 @@ impl ClipboardHistory {
             .collect()
     }
 
-    /// Get all items (most recent first)
+    /// Get all items (most recent first).
     pub fn all(&self) -> Vec<&ClipboardEntry> {
         self.items.iter().collect()
     }
 
-    /// Get item by index
+    /// Get item by index.
+    #[allow(dead_code)]
     pub fn get(&self, index: usize) -> Option<&ClipboardEntry> {
         self.items.get(index)
     }
 
-    /// Number of items in history
+    /// Number of items in history.
+    #[allow(dead_code)]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
-    /// Check if history is empty
+    /// Check if history is empty.
+    #[allow(dead_code)]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
+    }
+
+    /// Clear all history.
+    #[allow(dead_code)]
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.last_content.clear();
     }
 }
 
@@ -187,5 +204,41 @@ mod tests {
 
         let preview = entry.preview(20);
         assert!(preview.len() <= 23); // 20 + "..."
+    }
+
+    #[test]
+    fn test_poll_with_content() {
+        let mut history = ClipboardHistory::new(5);
+
+        // First poll adds content
+        assert!(history.poll_with_content("first"));
+        assert_eq!(history.len(), 1);
+
+        // Same content doesn't add
+        assert!(!history.poll_with_content("first"));
+        assert_eq!(history.len(), 1);
+
+        // New content adds
+        assert!(history.poll_with_content("second"));
+        assert_eq!(history.len(), 2);
+
+        // Empty content doesn't add
+        assert!(!history.poll_with_content(""));
+        assert!(!history.poll_with_content("   "));
+        assert_eq!(history.len(), 2);
+    }
+
+    #[test]
+    fn test_max_items() {
+        let mut history = ClipboardHistory::new(3);
+
+        history.add("one".to_string());
+        history.add("two".to_string());
+        history.add("three".to_string());
+        history.add("four".to_string()); // Should push out "one"
+
+        assert_eq!(history.len(), 3);
+        assert_eq!(history.get(0).unwrap().content, "four");
+        assert_eq!(history.get(2).unwrap().content, "two");
     }
 }

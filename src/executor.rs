@@ -1,14 +1,25 @@
-//! Result execution module - determines what action to take for each SearchResult
+//! Result execution module - determines what action to take for each SearchResult.
+//!
+//! This module defines ExecutionAction, which represents the action to take
+//! when a search result is selected. The actual execution is delegated to
+//! the Platform trait implementation.
+
+// Allow dead code - items are used by FFI layer but GTK has its own execution logic.
+#![allow(dead_code)]
 
 use std::path::PathBuf;
 
-use crate::services::{LoadedCommand, ScriptOutputMode};
+use crate::platform::{AppEntry, Platform, WindowPosition};
+use crate::services::{ExtensionManager, LoadedCommand, OutputMode, ScriptOutputMode};
 
-/// The action to perform when a result is executed
+// Re-export for use in main.rs GTK UI
+pub use crate::platform::SystemCommand;
+
+/// The action to perform when a result is executed.
 #[derive(Debug, Clone)]
 pub enum ExecutionAction {
-    /// Launch an application by its .desktop exec command
-    LaunchApp { exec: String, name: String },
+    /// Launch an application
+    LaunchApp { app: AppEntry },
 
     /// Open Nova settings
     OpenSettings,
@@ -38,44 +49,254 @@ pub enum ExecutionAction {
         argument: Option<String>,
     },
 
+    /// Execute a Deno extension command
+    RunDenoCommand {
+        extension_id: String,
+        command_id: String,
+        argument: Option<String>,
+    },
+
     /// Copy text to clipboard with notification
     CopyToClipboard {
         content: String,
         notification: String,
     },
 
-    /// Open a file or directory with xdg-open
+    /// Open a file or directory
     OpenFile { path: String },
+
+    /// Set window position (tiling)
+    SetWindowPosition { position: WindowPosition },
 
     /// No action needed (e.g., quicklink waiting for query input)
     NeedsInput,
 }
 
-/// System commands that can be executed
-#[derive(Debug, Clone, Copy)]
-pub enum SystemCommand {
-    Lock,
-    Sleep,
-    Logout,
-    Restart,
-    Shutdown,
+/// Result of executing an action.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(tag = "result", content = "message")]
+pub enum ExecutionResult {
+    /// Action completed successfully, hide the window
+    Success,
+    /// Action completed but keep the window open (e.g., clipboard copy)
+    SuccessKeepOpen,
+    /// Open settings window
+    OpenSettings,
+    /// Quit the application
+    Quit,
+    /// Action failed with an error message
+    Error(String),
+    /// Waiting for more input from user
+    NeedsInput,
 }
 
-impl SystemCommand {
-    /// Get the command and arguments to execute
-    pub fn command_args(&self) -> (&'static str, Vec<&'static str>) {
-        match self {
-            SystemCommand::Lock => ("loginctl", vec!["lock-session"]),
-            SystemCommand::Sleep => ("systemctl", vec!["suspend"]),
-            SystemCommand::Logout => ("gnome-session-quit", vec!["--logout", "--no-prompt"]),
-            SystemCommand::Restart => ("systemctl", vec!["reboot"]),
-            SystemCommand::Shutdown => ("systemctl", vec!["poweroff"]),
+/// Execute an action using the platform trait.
+pub fn execute(
+    action: &ExecutionAction,
+    platform: &dyn Platform,
+    extension_manager: Option<&ExtensionManager>,
+) -> ExecutionResult {
+    match action {
+        ExecutionAction::LaunchApp { app } => match platform.launch_app(app) {
+            Ok(()) => ExecutionResult::Success,
+            Err(e) => ExecutionResult::Error(e),
+        },
+
+        ExecutionAction::OpenSettings => ExecutionResult::OpenSettings,
+
+        ExecutionAction::Quit => ExecutionResult::Quit,
+
+        ExecutionAction::SystemCommand { command } => match platform.system_command(*command) {
+            Ok(()) => ExecutionResult::Success,
+            Err(e) => ExecutionResult::Error(e),
+        },
+
+        ExecutionAction::RunShellCommand { command } => match platform.run_shell_command(command) {
+            Ok(()) => ExecutionResult::Success,
+            Err(e) => ExecutionResult::Error(e),
+        },
+
+        ExecutionAction::OpenUrl { url } => match platform.open_url(url) {
+            Ok(()) => ExecutionResult::Success,
+            Err(e) => ExecutionResult::Error(e),
+        },
+
+        ExecutionAction::RunScript {
+            path,
+            argument,
+            output_mode,
+        } => execute_script(path, argument.as_ref(), output_mode, platform),
+
+        ExecutionAction::RunExtensionCommand { command, argument } => {
+            if let Some(ext_manager) = extension_manager {
+                execute_extension_command(ext_manager, command, argument.as_ref(), platform)
+            } else {
+                ExecutionResult::Error("Extension manager not available".to_string())
+            }
         }
+
+        ExecutionAction::RunDenoCommand {
+            extension_id,
+            command_id,
+            argument: _,
+        } => {
+            // Deno extension execution is handled separately via ExtensionHost
+            // This is a placeholder - actual execution happens in ffi.rs
+            ExecutionResult::Error(format!(
+                "Deno command execution not yet implemented: {}:{}",
+                extension_id, command_id
+            ))
+        }
+
+        ExecutionAction::CopyToClipboard {
+            content,
+            notification,
+        } => {
+            if let Err(e) = platform.clipboard_write(content) {
+                return ExecutionResult::Error(e);
+            }
+            let _ = platform.show_notification("Copied", notification);
+            ExecutionResult::Success
+        }
+
+        ExecutionAction::OpenFile { path } => {
+            // Expand ~ to home directory
+            let full_path = if path.starts_with("~/") {
+                dirs::home_dir()
+                    .map(|h| format!("{}{}", h.display(), &path[1..]))
+                    .unwrap_or_else(|| path.clone())
+            } else {
+                path.clone()
+            };
+
+            match platform.open_file(&full_path) {
+                Ok(()) => ExecutionResult::Success,
+                Err(e) => ExecutionResult::Error(e),
+            }
+        }
+
+        ExecutionAction::SetWindowPosition { position } => {
+            // Get the focused window and set its position
+            match platform.get_focused_window() {
+                Ok(window) => match platform.set_window_position(window.id, *position) {
+                    Ok(()) => ExecutionResult::Success,
+                    Err(e) => ExecutionResult::Error(e),
+                },
+                Err(e) => ExecutionResult::Error(e),
+            }
+        }
+
+        ExecutionAction::NeedsInput => ExecutionResult::NeedsInput,
+    }
+}
+
+/// Execute a script with the given arguments and output mode.
+fn execute_script(
+    path: &PathBuf,
+    argument: Option<&String>,
+    output_mode: &ScriptOutputMode,
+    platform: &dyn Platform,
+) -> ExecutionResult {
+    use std::process::Command;
+
+    let mut cmd = Command::new(path);
+    if let Some(arg) = argument {
+        cmd.arg(arg);
     }
 
-    /// Fallback command for logout if primary fails
-    pub fn logout_fallback() -> (&'static str, Vec<String>) {
-        let user = std::env::var("USER").unwrap_or_default();
-        ("loginctl", vec!["terminate-user".to_string(), user])
+    match output_mode {
+        ScriptOutputMode::Silent => match cmd.spawn() {
+            Ok(_) => ExecutionResult::Success,
+            Err(e) => ExecutionResult::Error(format!("Failed to execute script: {}", e)),
+        },
+        ScriptOutputMode::Notification => match cmd.output() {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() {
+                    let _ = platform.show_notification("Nova Script", &stdout);
+                }
+                ExecutionResult::Success
+            }
+            Err(e) => ExecutionResult::Error(format!("Failed to execute script: {}", e)),
+        },
+        ScriptOutputMode::Clipboard => match cmd.output() {
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !stdout.is_empty() {
+                    if let Err(e) = platform.clipboard_write(&stdout) {
+                        return ExecutionResult::Error(e);
+                    }
+                    let _ = platform.show_notification("Copied to clipboard", &stdout);
+                }
+                ExecutionResult::Success
+            }
+            Err(e) => ExecutionResult::Error(format!("Failed to execute script: {}", e)),
+        },
+        ScriptOutputMode::Inline => {
+            // For now, treat inline same as notification
+            match cmd.output() {
+                Ok(output) => {
+                    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !stdout.is_empty() {
+                        let _ = platform.show_notification("Nova Script", &stdout);
+                    }
+                    ExecutionResult::Success
+                }
+                Err(e) => ExecutionResult::Error(format!("Failed to execute script: {}", e)),
+            }
+        }
+    }
+}
+
+/// Execute an extension command and handle its output.
+fn execute_extension_command(
+    extension_manager: &ExtensionManager,
+    command: &LoadedCommand,
+    argument: Option<&String>,
+    platform: &dyn Platform,
+) -> ExecutionResult {
+    let result = match extension_manager.execute_command(command, argument.map(|s| s.as_str())) {
+        Ok(r) => r,
+        Err(e) => return ExecutionResult::Error(e),
+    };
+
+    // Check for script errors
+    if let Some(ref error) = result.error {
+        return ExecutionResult::Error(error.clone());
+    }
+
+    match command.output {
+        OutputMode::Silent => ExecutionResult::Success,
+        OutputMode::Notification => {
+            if let Some(item) = result.items.first() {
+                let title = &item.title;
+                let body = item.subtitle.as_deref().unwrap_or("");
+                let _ = platform.show_notification(title, body);
+            }
+            ExecutionResult::Success
+        }
+        OutputMode::Clipboard => {
+            if let Some(item) = result.items.first() {
+                if let Err(e) = platform.clipboard_write(&item.title) {
+                    return ExecutionResult::Error(e);
+                }
+                let _ = platform.show_notification("Copied to clipboard", &item.title);
+            }
+            ExecutionResult::Success
+        }
+        OutputMode::List => {
+            // For list mode, show as notification for now
+            if !result.items.is_empty() {
+                let summary = result
+                    .items
+                    .iter()
+                    .take(3)
+                    .map(|i| i.title.as_str())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                let _ = platform.show_notification("Extension Results", &summary);
+            }
+            ExecutionResult::Success
+        }
     }
 }

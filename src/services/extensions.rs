@@ -56,7 +56,7 @@ fn default_output_mode() -> OutputMode {
 }
 
 /// How to handle script output
-#[derive(Debug, Clone, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, Deserialize, Default, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum OutputMode {
     /// Show results as a list (JSON array)
@@ -85,7 +85,7 @@ pub struct LoadedExtension {
 }
 
 /// A command ready to execute
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 #[allow(dead_code)] // icon_path reserved for future UI features
 pub struct LoadedCommand {
     pub id: String,

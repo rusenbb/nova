@@ -1,6 +1,17 @@
-# Nova
+<p align="center">
+  <img src="assets/user-selected/transparent/hq-logo-nova.png" alt="Nova Logo" width="180">
+</p>
 
-**A keyboard-driven productivity launcher for Linux.** Think [Raycast](https://raycast.com), but open source and built for Linux.
+<h1 align="center">Nova</h1>
+
+<p align="center">
+  <strong>A keyboard-driven productivity launcher for Linux and macOS.</strong><br>
+  Think <a href="https://raycast.com">Raycast</a>, but open source and cross-platform.
+</p>
+
+<p align="center">
+  <img src="assets/user-selected/transparent/nova-writing.png" alt="Nova" width="400">
+</p>
 
 Nova helps you launch apps, run custom commands, and access your favorite websites — all without touching the mouse.
 
@@ -10,48 +21,68 @@ Nova helps you launch apps, run custom commands, and access your favorite websit
 - **Quicklinks** — Open URLs with optional search queries (e.g., `yt cats` → YouTube search for "cats")
 - **Aliases** — Create shortcuts to launch apps with custom keywords
 - **Scripts** — Run custom shell scripts with arguments and capture output
+- **Calculator** — Evaluate math expressions inline
+- **Clipboard History** — Access recently copied items
 - **Command Mode** — Type a keyword + space to enter focused search mode with visual feedback
 - **Themes** — Multiple built-in themes (Catppuccin, Nord, Dracula, Gruvbox, Tokyo Night, One Dark)
-- **Customizable** — Configure accent colors, opacity, hotkeys, and more
+- **Cross-Platform** — Works on Linux (X11) and macOS
 
 ## Installation
+
+### Download
+
+Download the latest release for your platform from the [Releases](https://github.com/rusenbb/nova/releases) page:
+
+| Platform | Download |
+|----------|----------|
+| **Linux (x86_64)** | `Nova-x86_64.AppImage` or `nova-linux-x86_64.tar.gz` |
+| **macOS (Apple Silicon)** | `nova-macos-aarch64.dmg` |
+| **macOS (Intel)** | `nova-macos-x86_64.dmg` |
+
+### Linux
+
+#### AppImage (Recommended)
+```bash
+# Download and make executable
+chmod +x Nova-x86_64.AppImage
+./Nova-x86_64.AppImage
+```
+
+#### From Tarball
+```bash
+tar -xzf nova-linux-x86_64.tar.gz
+sudo cp nova-linux-x86_64/nova /usr/local/bin/
+```
+
+### macOS
+
+1. Download the `.dmg` file for your Mac (Apple Silicon or Intel)
+2. Open the DMG and drag Nova to Applications
+3. Right-click Nova and select "Open" (first time only, to bypass Gatekeeper)
 
 ### From Source
 
 Prerequisites:
 - Rust (latest stable)
-- GTK 3 development libraries
 
+#### Linux Dependencies
 ```bash
 # Ubuntu/Debian
-sudo apt install libgtk-3-dev libwebkit2gtk-4.1-dev
+sudo apt install libxdo-dev libxcb1-dev libxcb-render0-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
 # Fedora
-sudo dnf install gtk3-devel webkit2gtk4.1-devel
+sudo dnf install libxdo-devel libxcb-devel
 
 # Arch
-sudo pacman -S gtk3 webkit2gtk-4.1
+sudo pacman -S libxdo libxcb
 ```
 
-Build and install:
-
+#### Build
 ```bash
 git clone https://github.com/rusenbb/nova.git
 cd nova
-cargo build --release
-sudo cp target/release/nova /usr/local/bin/
-```
-
-### Set Up Hotkey
-
-Nova registers `Alt+Space` by default. You can change this in Settings or manually:
-
-```bash
-# GNOME
-gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nova/']"
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nova/ name 'Nova'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nova/ command 'nova'
-gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/nova/ binding '<Alt>space'
+cargo build --release --no-default-features --features iced-ui
+sudo cp target/release/nova-iced /usr/local/bin/nova
 ```
 
 ## Usage
@@ -98,7 +129,9 @@ Scripts support:
 
 ## Configuration
 
-Config file: `~/.config/nova/config.toml`
+Config file location:
+- **Linux**: `~/.config/nova/config.toml`
+- **macOS**: `~/Library/Application Support/nova/config.toml`
 
 ```toml
 [general]
@@ -134,20 +167,24 @@ directory = "~/.config/nova/scripts"
 enabled = true
 ```
 
-## Roadmap
+## Platform Notes
 
-- [ ] Plugin system
-- [ ] Clipboard history
-- [ ] Calculator
-- [ ] File search
-- [ ] Window management
-- [ ] Snippets
+### Linux
+- **X11**: Fully supported with global hotkeys
+- **Wayland**: Limited support. Global hotkeys require compositor configuration. Consider configuring your compositor (Sway, Hyprland, etc.) to launch Nova with a keybinding.
+
+### macOS
+- Nova runs as a menu bar app (no dock icon)
+- First launch requires right-click → Open to bypass Gatekeeper
+- Accessibility permissions may be required for global hotkeys
 
 ## Tech Stack
 
-- **Backend**: Rust + GTK3 (pure Rust, no Electron)
+- **UI**: [iced](https://iced.rs) - Cross-platform Rust GUI framework
+- **Hotkeys**: [global-hotkey](https://crates.io/crates/global-hotkey) - Cross-platform hotkey registration
+- **Clipboard**: [arboard](https://crates.io/crates/arboard) - Cross-platform clipboard
 - **Config**: TOML
-- **IPC**: Unix sockets for single-instance
+- **IPC**: Local sockets for single-instance
 
 ## Contributing
 

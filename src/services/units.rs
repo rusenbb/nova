@@ -106,9 +106,8 @@ fn parse_value_unit(s: &str) -> Option<(f64, &str)> {
         } else if (c == '-' || c == '+') && !has_sign && !has_digit {
             has_sign = true;
             num_end = i + 1;
-        } else if c.is_whitespace() && has_digit {
-            break;
         } else if has_digit {
+            // Stop parsing number when we hit whitespace or any other non-digit character
             break;
         }
     }
@@ -650,7 +649,7 @@ mod tests {
     fn test_parse_value_unit() {
         assert_eq!(parse_value_unit("10km"), Some((10.0, "km")));
         assert_eq!(parse_value_unit("10 km"), Some((10.0, "km")));
-        assert_eq!(parse_value_unit("3.14 m"), Some((3.14, "m")));
+        assert_eq!(parse_value_unit("2.5 m"), Some((2.5, "m")));
         assert_eq!(parse_value_unit("-5 c"), Some((-5.0, "c")));
     }
 

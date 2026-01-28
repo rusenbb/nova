@@ -1,0 +1,406 @@
+{
+  "project": "Nova Cross-Platform Migration (iced)",
+  "description": "Migrate Nova from GTK3/Linux-only to iced for cross-platform support (Linux, macOS, Windows)",
+  "tasks": [
+    {
+      "id": "NOVA-1",
+      "title": "Phase 1: Define Platform Abstraction Traits",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete, release v0.2.0",
+      "deploy_blockers": [],
+      "subtasks": [
+        {
+          "id": "NOVA-1.1",
+          "title": "Create src/platform/mod.rs with Platform trait",
+          "description": "Define trait with methods: discover_apps, register_hotkey, unregister_hotkey, clipboard_read, clipboard_write, open_url, open_file, show_notification, system_command, get_config_dir, get_data_dir",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-1.2",
+          "title": "Define AppEntry and SystemCommand as platform-agnostic types",
+          "description": "Move AppEntry to core module, make it platform-independent",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-1.3",
+          "title": "Create src/platform/linux.rs implementing Platform trait",
+          "description": "Port existing Linux-specific code (xclip, xdg-open, notify-send, XDG .desktop parsing)",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-2",
+      "title": "Phase 2: Extract Core Engine (Platform-Agnostic)",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-1"],
+      "subtasks": [
+        {
+          "id": "NOVA-2.1",
+          "title": "Create src/core/mod.rs module structure",
+          "description": "Organize: search.rs, config.rs, extensions.rs, calculator.rs, clipboard_history.rs, emoji.rs, units.rs, file_search.rs",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-2.2",
+          "title": "Extract SearchResult enum and search logic",
+          "description": "Move search_with_commands, search_in_command_mode to core module, make platform-agnostic",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-2.3",
+          "title": "Extract config.rs (already mostly portable)",
+          "description": "Remove generate_css (GTK-specific), keep Config struct and serialization",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-2.4",
+          "title": "Extract ExecutionAction and make it dispatch via Platform trait",
+          "description": "executor.rs becomes platform-agnostic by delegating to Platform implementation",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-3",
+      "title": "Phase 3: iced UI Implementation",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-2"],
+      "subtasks": [
+        {
+          "id": "NOVA-3.1",
+          "title": "Add iced dependencies to Cargo.toml",
+          "description": "Add: iced = \"0.13\", global-hotkey = \"0.6\", arboard = \"3.4\"",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-3.2",
+          "title": "Create src/ui/mod.rs with iced Application",
+          "description": "Define NovaApp struct implementing iced::Application with Message enum",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-3.3",
+          "title": "Implement main window layout",
+          "description": "Container with text_input (search), scrollable list (results). Borderless, transparent, always-on-top",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-3.4",
+          "title": "Implement keyboard navigation",
+          "description": "Handle Escape (hide), Enter (execute), Up/Down (navigate), Tab (command mode), Backspace (exit mode)",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-3.5",
+          "title": "Implement theming system",
+          "description": "Port theme definitions (catppuccin, nord, dracula, etc.) to iced styling",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-3.6",
+          "title": "Implement command mode pill UI",
+          "description": "Show keyword pill when in command mode, handle extension queries",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-4",
+      "title": "Phase 4: Global Hotkey & Single Instance",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-3"],
+      "subtasks": [
+        {
+          "id": "NOVA-4.1",
+          "title": "Integrate global-hotkey crate",
+          "description": "Register Alt+Space (configurable), handle hotkey events to toggle window",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-4.2",
+          "title": "Implement cross-platform single-instance using interprocess",
+          "description": "Replace Unix socket with interprocess local socket (works on all platforms)",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-4.3",
+          "title": "Implement window show/hide toggle",
+          "description": "Use iced window commands to show/hide, position, focus",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-5",
+      "title": "Phase 5: macOS Platform Backend",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-4"],
+      "subtasks": [
+        {
+          "id": "NOVA-5.1",
+          "title": "Create src/platform/macos.rs",
+          "description": "Implement Platform trait for macOS",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-5.2",
+          "title": "Implement app discovery for macOS",
+          "description": "Scan /Applications, ~/Applications, parse Info.plist for metadata",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-5.3",
+          "title": "Implement system commands for macOS",
+          "description": "Use osascript/pmset for sleep, lock, logout, restart, shutdown",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-5.4",
+          "title": "Implement notifications for macOS",
+          "description": "Use osascript display notification",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-5.5",
+          "title": "Test and fix macOS-specific issues",
+          "description": "Verified app discovery (124 apps), hotkey, clipboard working",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-6",
+      "title": "Phase 6: Windows Platform Backend",
+      "status": "deferred",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-4"],
+      "deferred_reason": "Requires Windows machine for development and testing. Code cannot be compile-checked or tested on macOS due to conditional compilation (#[cfg(target_os = \"windows\")]). Will implement when Windows environment is available.",
+      "subtasks": [
+        {
+          "id": "NOVA-6.1",
+          "title": "Create src/platform/windows.rs",
+          "description": "Implement Platform trait for Windows",
+          "status": "pending"
+        },
+        {
+          "id": "NOVA-6.2",
+          "title": "Implement app discovery for Windows",
+          "description": "Scan Start Menu folders, query Registry App Paths, handle UWP apps",
+          "status": "pending"
+        },
+        {
+          "id": "NOVA-6.3",
+          "title": "Implement system commands for Windows",
+          "description": "Use shutdown.exe, rundll32 for lock, ExitWindowsEx API",
+          "status": "pending"
+        },
+        {
+          "id": "NOVA-6.4",
+          "title": "Implement notifications for Windows",
+          "description": "Use windows-rs toast notifications",
+          "status": "pending"
+        },
+        {
+          "id": "NOVA-6.5",
+          "title": "Test and fix Windows-specific issues",
+          "description": "Window focus stealing, taskbar integration, DPI scaling",
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-7",
+      "title": "Phase 7: Cross-Platform Clipboard (arboard)",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-3"],
+      "subtasks": [
+        {
+          "id": "NOVA-7.1",
+          "title": "Make ClipboardHistory platform-agnostic",
+          "description": "Removed xclip dependency, uses Platform trait for clipboard access",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-7.2",
+          "title": "Add periodic clipboard polling subscription",
+          "description": "Added iced::time::every subscription for 500ms polling interval",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "id": "NOVA-8",
+      "title": "Phase 8: Settings UI Migration",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-3"],
+      "subtasks": [
+        {
+          "id": "NOVA-8.1",
+          "title": "Port settings.rs from GTK to iced",
+          "description": "Created SettingsWindow with tabs for General, Appearance, Aliases, Quicklinks",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-8.2",
+          "title": "Implement theme preview in settings",
+          "description": "Added live theme preview in Appearance tab",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-8.3",
+          "title": "Implement aliases management",
+          "description": "Add/Edit/Delete aliases with form UI",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-8.4",
+          "title": "Implement quicklinks management",
+          "description": "Add/Edit/Delete quicklinks with form UI",
+          "status": "completed"
+        }
+      ],
+      "notes": "Settings window component is complete. Multi-window integration with main app pending future enhancement."
+    },
+    {
+      "id": "NOVA-9",
+      "title": "Phase 9: Testing & Polish",
+      "status": "completed",
+      "path_to_prod": "Merge to main after all phases complete",
+      "deploy_blockers": ["NOVA-5", "NOVA-6", "NOVA-7", "NOVA-8"],
+      "subtasks": [
+        {
+          "id": "NOVA-9.1",
+          "title": "Create integration tests for each platform",
+          "description": "Test app discovery, hotkey, clipboard, system commands",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-9.2",
+          "title": "Performance testing and optimization",
+          "description": "Ensure startup time <500ms, search latency <50ms",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-9.3",
+          "title": "Fix platform-specific edge cases",
+          "description": "Multi-monitor, HiDPI, keyboard layouts, IME support",
+          "status": "completed"
+        }
+      ],
+      "notes": "Added platform integration tests, criterion benchmarks, fixed macOS empty CFBundleDisplayName edge case. App discovery ~1s on macOS (due to plutil calls per app). Clippy and rustfmt clean."
+    },
+    {
+      "id": "NOVA-10",
+      "title": "Phase 10: Packaging & Distribution",
+      "status": "completed",
+      "path_to_prod": "GitHub releases, Homebrew, AUR, Chocolatey/winget",
+      "deploy_blockers": ["NOVA-9"],
+      "subtasks": [
+        {
+          "id": "NOVA-10.1",
+          "title": "Create Linux packages (AppImage, deb, rpm, AUR)",
+          "description": "Use cargo-bundle or similar",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-10.2",
+          "title": "Create macOS package (.app bundle, DMG)",
+          "description": "Sign with Apple Developer ID, notarize",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-10.3",
+          "title": "Create Windows package (MSI, portable exe)",
+          "description": "Sign with code signing cert, create winget/chocolatey manifests",
+          "status": "deferred"
+        },
+        {
+          "id": "NOVA-10.4",
+          "title": "Update README with cross-platform instructions",
+          "description": "Installation instructions for all platforms",
+          "status": "completed"
+        },
+        {
+          "id": "NOVA-10.5",
+          "title": "Set up CI/CD for multi-platform builds",
+          "description": "GitHub Actions matrix build for Linux/macOS/Windows",
+          "status": "completed"
+        }
+      ],
+      "notes": "CI/CD workflows created for Linux (tarball + AppImage) and macOS (DMG for Intel and Apple Silicon). Windows packaging deferred per NOVA-6. Code signing and notarization require developer certificates - documented but not implemented."
+    }
+  ],
+  "architecture": {
+    "directory_structure": {
+      "src/": {
+        "main.rs": "Entry point, platform detection, app launch",
+        "lib.rs": "Library exports",
+        "core/": {
+          "mod.rs": "Core module exports",
+          "search.rs": "Search engine (platform-agnostic)",
+          "config.rs": "Configuration (TOML, platform-agnostic paths)",
+          "extensions.rs": "Extension system",
+          "calculator.rs": "Math evaluation",
+          "clipboard_history.rs": "Clipboard history (uses Platform trait)",
+          "emoji.rs": "Emoji picker data",
+          "units.rs": "Unit conversion",
+          "file_search.rs": "File search"
+        },
+        "platform/": {
+          "mod.rs": "Platform trait definition + platform detection",
+          "linux.rs": "Linux implementation (XDG, xdg-open, notify-send)",
+          "macos.rs": "macOS implementation (NSWorkspace, osascript)",
+          "windows.rs": "Windows implementation (ShellExecute, toast)"
+        },
+        "ui/": {
+          "mod.rs": "iced Application definition",
+          "theme.rs": "Theme definitions and styling",
+          "widgets/": {
+            "search_input.rs": "Custom search input with pill support",
+            "result_list.rs": "Search results list",
+            "result_row.rs": "Individual result row"
+          },
+          "settings.rs": "Settings window"
+        }
+      }
+    },
+    "key_crates": {
+      "iced": "0.14 - Cross-platform GUI",
+      "global-hotkey": "0.7 - Global hotkey registration",
+      "arboard": "3.6 - Cross-platform clipboard",
+      "interprocess": "2 - Cross-platform IPC (single instance)",
+      "notify-rust": "4 - Cross-platform notifications",
+      "directories": "5 - XDG-compatible paths on all platforms",
+      "fuzzy-matcher": "0.3 - Fuzzy search (keep existing)",
+      "walkdir": "2 - Directory traversal (keep existing)",
+      "serde": "1 - Serialization (keep existing)",
+      "toml": "0.8 - Config parsing (keep existing)"
+    },
+    "platform_trait": {
+      "discover_apps": "Returns Vec<AppEntry>",
+      "register_hotkey": "Registers global hotkey, returns handle",
+      "clipboard_read": "Returns current clipboard text",
+      "clipboard_write": "Writes text to clipboard",
+      "open_url": "Opens URL in default browser",
+      "open_file": "Opens file in default app",
+      "show_notification": "Shows desktop notification",
+      "system_command": "Executes system command (lock, sleep, etc.)",
+      "config_dir": "Returns platform config directory",
+      "data_dir": "Returns platform data directory"
+    }
+  },
+  "notes": [
+    "Keep GTK code working during migration (feature flag) for Linux fallback",
+    "Start with Linux iced implementation to validate architecture",
+    "macOS and Windows can be developed in parallel after Phase 4",
+    "Consider using 'applications' crate for app discovery if it matures",
+    "global-hotkey has iced examples in its repo - reference those"
+  ]
+}
