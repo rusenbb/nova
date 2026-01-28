@@ -10,7 +10,6 @@ target/
 .DS_Store
 
 # Project docs (internal planning)
-.project_docs/
 # macOS frontend build artifacts
 frontends/macos/build/
 frontends/macos/*.xcodeproj/xcuserdata/
