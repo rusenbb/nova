@@ -1,0 +1,22 @@
+[package]
+name = "nova-platform"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nova-core = { path = "../nova-core" }
+thiserror = { workspace = true }
+arboard = "3"
+notify-rust = "4"
+open = "5"
+auto-launch = "0.5"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+freedesktop-desktop-entry = "0.7"
+walkdir = "2"
+fuzzy-matcher = "0.3"
+dirs = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+
+[target.'cfg(target_os = "windows")'.dependencies]

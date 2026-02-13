@@ -1,0 +1,15 @@
+[package]
+name = "nova"
+version.workspace = true
+edition.workspace = true
+description = "Keyboard-driven productivity launcher"
+
+[[bin]]
+name = "nova"
+path = "src/main.rs"
+
+[dependencies]
+nova-core = { path = "../nova-core" }
+nova-platform = { path = "../nova-platform" }
+nova-ui = { path = "../nova-ui" }
+interprocess = { version = "2", features = ["tokio"] }

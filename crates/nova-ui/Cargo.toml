@@ -1,0 +1,11 @@
+[package]
+name = "nova-ui"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+nova-core = { path = "../nova-core" }
+nova-platform = { path = "../nova-platform" }
+iced = { version = "0.13", features = ["tokio"] }
+tokio = { version = "1", features = ["time"] }
+futures-lite = "2"
